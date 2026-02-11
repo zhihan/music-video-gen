@@ -1,68 +1,53 @@
 # Music Video Generator (MVG) - Architecture Plan
 
 ## Overview
-A Python-based tool to programmatically assemble music videos from short AI-generated clips (e.g., Google Veo, Runway) based on a structured manifest file.
+A Python-based tool to programmatically assemble music videos from AI-generated clips.
+**New Feature:** Can generate clips directly using Google Veo 3 (via Vertex AI) if prompts are provided.
 
 ## Features
-1.  **Multi-Format:** Support for Vertical (9:16) and Horizontal (16:9) aspect ratios.
-2.  **Manifest-Driven:** Uses `script.yaml` to define scene order, timing, and prompts.
-3.  **Auto-Stitching:** Concatenates clips, handling resizing/cropping automatically.
-4.  **Audio Sync:** Loops video or cuts audio to match specific durations.
-5.  **Lyrics Engine:** Auto-transcribe lyrics using OpenAI Whisper and burn captions (SRT style) onto the video.
+1.  **Multi-Format:** Support for Vertical (9:16) and Horizontal (16:9).
+2.  **Manifest-Driven:** Uses `script.yaml` to define scene order, timing, and **prompts**.
+3.  **Auto-Stitching:** Concatenates clips, handling resizing/cropping.
+4.  **Audio Sync:** Loops video or cuts audio to match durations.
+5.  **Lyrics Engine:** Auto-transcribe via OpenAI Whisper & burn subtitles.
+6.  **AI Generation:** Direct integration with **Google Veo 3 API** to generate missing clips from prompts.
 
 ## Directory Structure
 ```
 /
 ├── assets/
-│   ├── clips/       # Raw video files (01.mp4, etc.)
-│   ├── music/       # Input audio file
-│   └── fonts/       # Custom fonts for lyrics
-├── output/          # Final rendered videos
+│   ├── clips/       # Generated/Downloaded clips
+│   ├── music/       # Input audio
+│   └── fonts/
+├── output/
 ├── src/
-│   ├── main.py      # Entry point
-│   ├── manifest.py  # Parser for script.yaml
-│   ├── editor.py    # MoviePy logic (stitch, resize, loop)
-│   └── lyrics.py    # Whisper integration & subtitle rendering
-├── script.yaml      # User configuration (scene list)
+│   ├── main.py
+│   ├── manifest.py
+│   ├── editor.py    # MoviePy logic
+│   ├── lyrics.py    # Whisper logic
+│   └── generator.py # Google Veo / Vertex AI Client
+├── script.yaml
 └── requirements.txt
 ```
 
-## `script.yaml` Example
+## `script.yaml` (Enhanced)
 ```yaml
-project_name: "My Music Video"
-resolution: "1080x1920" # 9:16 Vertical
-fps: 24
+project_name: "AI Masterpiece"
 audio_file: "assets/music/song.mp3"
 
 scenes:
-  - id: "intro"
-    file: "assets/clips/01_intro.mp4"
-    duration: 8.0  # Force clip to this length (loop/speed up)
-    transition: "crossfade"
+  - id: "scene1"
+    prompt: "Cinematic close up of water filling a crystal glass, 4k, photorealistic"
+    duration: 8.0
+    source: "generate" # Uses Veo 3
     
-  - id: "verse1"
-    file: "assets/clips/02_verse.mp4"
-    duration: 16.0
-    
-lyrics:
-  enabled: true
-  provider: "whisper" # or "manual" (srt file)
-  style:
-    font: "Helvetica-Bold"
-    size: 60
-    color: "yellow"
-    bg_color: "#00000080"
-    position: "bottom"
+  - id: "scene2"
+    file: "assets/clips/my_manual_clip.mp4" # Uses existing file
+    duration: 4.0
 ```
-
-## Implementation Steps
-1.  **Core Stitcher:** Build `editor.py` to read YAML and stitch clips.
-2.  **Audio Layer:** Integrate background music.
-3.  **Lyrics Module:** Implement `lyrics.py` using `openai-whisper` to generate SRT, then `MoviePy` TextClip to overlay.
-4.  **CLI:** Wrap it in a nice `mvg build` command.
 
 ## Tech Stack
 - **Python 3.10+**
-- **MoviePy:** Video editing core.
-- **OpenAI Whisper:** Transcription.
-- **PyYAML:** Config parsing.
+- **MoviePy:** Editing.
+- **OpenAI Whisper:** Lyrics.
+- **Google-Cloud-AI-Platform:** Veo 3 Generation.
