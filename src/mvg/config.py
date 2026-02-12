@@ -55,6 +55,32 @@ class Config(BaseModel):
         if not self.anthropic_api_key:
             raise ValueError("ANTHROPIC_API_KEY not set")
 
+    def validate_veo_required(self) -> None:
+        """Validate that Veo 3 / Google Cloud credentials are set.
+
+        Raises:
+            ValueError: If any required Veo configuration is missing.
+        """
+        missing: list[str] = []
+
+        if not self.google_cloud_project:
+            missing.append("GOOGLE_CLOUD_PROJECT")
+        if not self.veo_output_bucket:
+            missing.append("VEO_OUTPUT_BUCKET")
+
+        if missing:
+            raise ValueError(
+                f"Missing required Veo configuration: {', '.join(missing)}. "
+                "Set the corresponding environment variables."
+            )
+
+        # Validate bucket format
+        if self.veo_output_bucket and not self.veo_output_bucket.startswith("gs://"):
+            raise ValueError(
+                f"VEO_OUTPUT_BUCKET must be a GCS URI starting with 'gs://'. "
+                f"Got: {self.veo_output_bucket}"
+            )
+
 
 # Global config instance
 config = Config()
