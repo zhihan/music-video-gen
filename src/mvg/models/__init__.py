@@ -2,6 +2,6 @@
 
 from .scene import Scene
 from .manifest import Manifest
-from .project import Project
+from .project import Project, ProjectState
 
-__all__ = ["Scene", "Manifest", "Project"]
+__all__ = ["Scene", "Manifest", "Project", "ProjectState"]
