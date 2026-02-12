@@ -99,6 +99,107 @@ class OutputFormat(str, Enum):
 
 
 @app.command()
+def research(
+    idea: str = typer.Argument(
+        ...,
+        help="Creative idea or concept for the video"
+    ),
+    duration: int = typer.Option(
+        30,
+        "--duration",
+        "-d",
+        help="Target duration in seconds",
+        min=5,
+        max=600
+    ),
+    scenes: Optional[int] = typer.Option(
+        None,
+        "--scenes",
+        "-s",
+        help="Number of scenes (auto-calculated if not specified)"
+    ),
+    style: Optional[str] = typer.Option(
+        None,
+        "--style",
+        help="Visual style hints (e.g., 'cinematic', 'ethereal', '90s aesthetic')"
+    ),
+    output: Path = typer.Option(
+        Path("manifest.yaml"),
+        "--output",
+        "-o",
+        help="Output manifest file path"
+    )
+) -> None:
+    """Generate scene descriptions from a creative idea using AI."""
+    from .agents import ResearchAgent
+    from .agents.research import ResearchInput
+
+    typer.echo(f"🎬 Researching: {idea}")
+    typer.echo(f"   Target duration: {duration}s")
+
+    if style:
+        typer.echo(f"   Style: {style}")
+
+    # Validate API key
+    if not config.anthropic_api_key:
+        typer.echo("❌ ANTHROPIC_API_KEY environment variable not set")
+        raise typer.Exit(1)
+
+    # Create and run the research agent
+    try:
+        agent = ResearchAgent()
+        typer.echo(f"   Using model: {agent.model}")
+        typer.echo("   Generating scenes...")
+
+        input_data = ResearchInput(
+            idea=idea,
+            duration=duration,
+            num_scenes=scenes,
+            style=style,
+        )
+
+        generated_scenes = agent.run(input_data)
+
+    except Exception as e:
+        typer.echo(f"❌ Error generating scenes: {e}")
+        raise typer.Exit(1)
+
+    # Create manifest with generated scenes
+    # Generate project name from idea (first few words)
+    project_name = " ".join(idea.split()[:5])
+    if len(idea.split()) > 5:
+        project_name += "..."
+
+    manifest = Manifest(
+        project_name=project_name,
+        scenes=generated_scenes,
+        aspect_ratio="16:9",
+        output_format="mp4",
+    )
+
+    # Save manifest
+    try:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        manifest.to_yaml(output)
+        typer.echo(f"\n✅ Manifest saved: {output}")
+    except Exception as e:
+        typer.echo(f"❌ Error saving manifest: {e}")
+        raise typer.Exit(1)
+
+    # Show summary
+    total_duration = sum(scene.duration for scene in generated_scenes)
+    typer.echo(f"\n📋 Summary:")
+    typer.echo(f"   Scenes: {len(generated_scenes)}")
+    typer.echo(f"   Total duration: {total_duration:.1f}s")
+
+    typer.echo(f"\n📽️  Scene breakdown:")
+    for scene in generated_scenes:
+        typer.echo(f"   • {scene.id}: {scene.duration}s")
+        prompt_preview = scene.prompt[:70] + "..." if len(scene.prompt) > 70 else scene.prompt
+        typer.echo(f"     {prompt_preview}")
+
+
+@app.command()
 def assemble(
     scenes_file: Path = typer.Argument(
         ...,
