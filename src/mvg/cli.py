@@ -1,5 +1,6 @@
 """CLI entry point for the music video generator."""
 
+import logging
 import typer
 from pathlib import Path
 from typing import Optional
@@ -14,6 +15,15 @@ app = typer.Typer(
     help="AI-powered music video generator",
     no_args_is_help=True
 )
+
+
+def setup_logging(verbose: bool = False) -> None:
+    """Configure logging."""
+    level = logging.DEBUG if verbose else logging.INFO
+    logging.basicConfig(
+        level=level,
+        format="%(levelname)s: %(message)s",
+    )
 
 
 def version_callback(value: bool) -> None:
@@ -40,26 +50,24 @@ def main(
 
 @app.command()
 def status(
-    project_dir: Path = typer.Option(
-        Path("."),
-        "--project",
-        "-p",
-        help="Project directory",
-        exists=True,
-        file_okay=False,
-        dir_okay=True
+    script: Path = typer.Option(
+        Path("script.yaml"),
+        "--script",
+        "-s",
+        help="Path to scenes YAML file",
+        exists=False,
+        file_okay=True,
+        dir_okay=False
     )
 ) -> None:
     """Show project status."""
-    manifest_path = project_dir / "script.yaml"
-    
-    if not manifest_path.exists():
-        typer.echo(f"❌ No project found at {project_dir}")
+    if not script.exists():
+        typer.echo(f"❌ No project found at {script}")
         typer.echo("   Run 'video-maker research' to create a new project")
         raise typer.Exit(1)
-    
+
     try:
-        manifest = Manifest.from_yaml(manifest_path)
+        manifest = Manifest.from_yaml(script)
         typer.echo(f"📁 Project: {manifest.project_name}")
         typer.echo(f"   Aspect ratio: {manifest.aspect_ratio}")
         typer.echo(f"   Scenes: {len(manifest.scenes)}")
@@ -124,7 +132,7 @@ def research(
         help="Visual style hints (e.g., 'cinematic', 'ethereal', '90s aesthetic')"
     ),
     output: Path = typer.Option(
-        Path("manifest.yaml"),
+        Path("script.yaml"),
         "--output",
         "-o",
         help="Output manifest file path"
@@ -200,23 +208,96 @@ def research(
 
 
 @app.command()
-def assemble(
-    scenes_file: Path = typer.Argument(
+def imagen(
+    prompt: str = typer.Argument(
         ...,
+        help="Text description of the image to generate"
+    ),
+    output: Path = typer.Option(
+        Path("./assets/character.png"),
+        "--output",
+        "-o",
+        help="Output image file path"
+    ),
+    aspect_ratio: str = typer.Option(
+        "1:1",
+        "--aspect-ratio",
+        "-a",
+        help="Image aspect ratio (1:1, 16:9, 9:16, 4:3, 3:4)"
+    ),
+    negative: Optional[str] = typer.Option(
+        None,
+        "--negative",
+        "-n",
+        help="Negative prompt - things to avoid"
+    ),
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        "-v",
+        help="Enable verbose logging"
+    ),
+) -> None:
+    """Generate a reference image using Google Imagen.
+
+    Use this to create consistent character references for video generation.
+
+    Example:
+        video-maker imagen "12-year-old Asian girl with short black hair, school uniform"
+    """
+    from .services.imagen import ImagenClient
+
+    setup_logging(verbose)
+    typer.echo(f"🎨 Generating image with Imagen")
+    typer.echo(f"   Prompt: {prompt[:70]}...")
+
+    try:
+        client = ImagenClient()
+        typer.echo(f"   Model: {client.model}")
+    except ValueError as e:
+        typer.echo(f"❌ Configuration error: {e}")
+        raise typer.Exit(1)
+
+    result = client.generate_image(
+        prompt=prompt,
+        output_path=output,
+        aspect_ratio=aspect_ratio,
+        negative_prompt=negative,
+    )
+
+    if result.error_message:
+        typer.echo(f"❌ Generation failed: {result.error_message}")
+        raise typer.Exit(1)
+
+    typer.echo(f"✅ Image saved: {result.local_path}")
+    typer.echo(f"\nUse this image as a character reference:")
+    typer.echo(f"   video-maker veo --reference {result.local_path}")
+
+
+@app.command()
+def assemble(
+    script: Path = typer.Option(
+        Path("script.yaml"),
+        "--script",
+        "-s",
         help="Path to scenes YAML file",
         exists=True,
         file_okay=True,
         dir_okay=False
     ),
-    clips_dir: Path = typer.Argument(
-        ...,
+    clips_dir: Path = typer.Option(
+        Path("./clips"),
+        "--clips",
+        "-c",
         help="Directory containing video clips",
         exists=True,
         file_okay=False,
         dir_okay=True
     ),
-    music_file: Optional[Path] = typer.Argument(
+    music_file: Optional[Path] = typer.Option(
         None,
+        "--music",
+        "-m",
         help="Path to background music file"
     ),
     output: Path = typer.Option(
@@ -252,11 +333,11 @@ def assemble(
     """Assemble video clips into final video with music and overlays."""
     from .editor import stitch_clips, sync_audio, export, add_text_overlay
 
-    typer.echo(f"📼 Assembling video from {scenes_file}")
+    typer.echo(f"📼 Assembling video from {script}")
 
     # Load manifest
     try:
-        manifest = Manifest.from_yaml(scenes_file)
+        manifest = Manifest.from_yaml(script)
     except Exception as e:
         typer.echo(f"❌ Error loading manifest: {e}")
         raise typer.Exit(1)
@@ -362,8 +443,10 @@ def assemble(
 
 @app.command()
 def veo(
-    scenes_file: Path = typer.Argument(
-        ...,
+    script: Path = typer.Option(
+        Path("script.yaml"),
+        "--script",
+        "-s",
         help="Path to scenes YAML manifest file",
         exists=True,
         file_okay=True,
@@ -386,7 +469,7 @@ def veo(
     skip_existing: bool = typer.Option(
         False,
         "--skip-existing",
-        "-s",
+        "-k",
         help="Skip scenes that already have clip files"
     ),
     dry_run: bool = typer.Option(
@@ -401,6 +484,18 @@ def veo(
         "-a",
         help="Override aspect ratio (16:9 or 9:16)"
     ),
+    reference: Optional[Path] = typer.Option(
+        None,
+        "--reference",
+        "-r",
+        help="Reference image for character consistency (use 'imagen' command to generate)"
+    ),
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        "-v",
+        help="Enable verbose logging"
+    ),
 ) -> None:
     """Generate video clips from scene prompts using Google Veo 3.
 
@@ -411,7 +506,8 @@ def veo(
     from concurrent.futures import ThreadPoolExecutor, as_completed
     from .services.veo import VeoClient, GenerationStatus, save_generation_metadata, GenerationResult
 
-    typer.echo(f"🎬 Veo Generation: {scenes_file}")
+    setup_logging(verbose)
+    typer.echo(f"🎬 Veo Generation: {script}")
 
     # Validate Veo configuration (unless dry run)
     if not dry_run:
@@ -423,7 +519,7 @@ def veo(
 
     # Load manifest
     try:
-        manifest = Manifest.from_yaml(scenes_file)
+        manifest = Manifest.from_yaml(script)
     except Exception as e:
         typer.echo(f"❌ Error loading manifest: {e}")
         raise typer.Exit(1)
@@ -502,6 +598,14 @@ def veo(
 
     typer.echo(f"\n⏳ Generating {len(scenes_to_generate)} clips (max {parallel} concurrent)...\n")
 
+    # Validate reference image if provided
+    if reference and not reference.exists():
+        typer.echo(f"❌ Reference image not found: {reference}")
+        raise typer.Exit(1)
+
+    if reference:
+        typer.echo(f"   Using reference image: {reference}")
+
     def generate_scene(scene_data: tuple[int, object]) -> GenerationResult:
         """Generate a single scene clip."""
         idx, scene = scene_data
@@ -516,6 +620,7 @@ def veo(
             aspect_ratio=ratio,
             output_path=clip_path,
             scene_id=scene.id,
+            reference_image=reference,
         )
 
     # Process scenes with thread pool for concurrent generation

@@ -57,6 +57,7 @@ class VeoClient:
 
     # Default configuration
     DEFAULT_LOCATION = "us-central1"
+    DEFAULT_MODEL = "veo-3.1-fast-generate-001"
     DEFAULT_POLL_INTERVAL = 10.0  # seconds
     DEFAULT_MAX_POLL_TIME = 600.0  # 10 minutes
     DEFAULT_MAX_RETRIES = 3
@@ -66,6 +67,7 @@ class VeoClient:
         self,
         project_id: Optional[str] = None,
         location: str = DEFAULT_LOCATION,
+        model: Optional[str] = None,
         output_bucket: Optional[str] = None,
         credentials_path: Optional[str] = None,
         poll_interval: float = DEFAULT_POLL_INTERVAL,
@@ -78,6 +80,7 @@ class VeoClient:
         Args:
             project_id: Google Cloud project ID. Defaults to GOOGLE_CLOUD_PROJECT env var.
             location: GCP region for Vertex AI. Defaults to us-central1.
+            model: Veo model name. Defaults to VEO_MODEL env var or veo-2.0-generate-001.
             output_bucket: GCS bucket for output videos. Defaults to VEO_OUTPUT_BUCKET env var.
             credentials_path: Path to service account JSON. Defaults to
                 GOOGLE_APPLICATION_CREDENTIALS env var.
@@ -88,6 +91,7 @@ class VeoClient:
         """
         self._project_id = project_id or config.google_cloud_project
         self._location = location
+        self._model = model or config.veo_model or self.DEFAULT_MODEL
         self._output_bucket = output_bucket or config.veo_output_bucket
         self._credentials_path = credentials_path or config.google_application_credentials
         self._poll_interval = poll_interval
@@ -155,6 +159,7 @@ class VeoClient:
         aspect_ratio: str = "16:9",
         output_path: Optional[Path] = None,
         scene_id: Optional[str] = None,
+        reference_image: Optional[Path] = None,
     ) -> GenerationResult:
         """Generate a video clip from a text prompt.
 
@@ -164,6 +169,7 @@ class VeoClient:
             aspect_ratio: Video aspect ratio ('16:9' or '9:16').
             output_path: Local path to save the generated video.
             scene_id: Optional identifier for tracking.
+            reference_image: Optional path to a reference image for character consistency.
 
         Returns:
             GenerationResult with operation details and status.
@@ -172,6 +178,8 @@ class VeoClient:
             ValueError: If prompt is empty or invalid parameters.
             google_exceptions.GoogleAPICallError: If API call fails.
         """
+        import base64
+
         if not prompt or not prompt.strip():
             raise ValueError("Prompt cannot be empty")
 
@@ -180,6 +188,13 @@ class VeoClient:
 
         # Clamp duration to Veo's supported range
         duration = max(5.0, min(8.0, duration))
+
+        # Load reference image if provided
+        reference_image_b64 = None
+        if reference_image and reference_image.exists():
+            with open(reference_image, "rb") as f:
+                reference_image_b64 = base64.b64encode(f.read()).decode("utf-8")
+            logger.info(f"Using reference image: {reference_image}")
 
         operation_id = f"veo-{scene_id or 'clip'}-{int(time.time())}"
         result = GenerationResult(
@@ -191,6 +206,7 @@ class VeoClient:
                 "duration": duration,
                 "aspect_ratio": aspect_ratio,
                 "scene_id": scene_id,
+                "has_reference_image": reference_image_b64 is not None,
             },
         )
 
@@ -213,22 +229,47 @@ class VeoClient:
                 duration=duration,
                 aspect_ratio=aspect_ratio,
                 output_uri=output_uri,
+                reference_image_b64=reference_image_b64,
             )
 
             result.status = GenerationStatus.PROCESSING
 
+            # Response contains operation name for polling
+            logger.info(f"Veo API response: {response}")
+            operation_name = response.get("name")
+            if not operation_name:
+                raise ValueError(f"No operation name in response: {response}")
+
             # Poll for completion
-            final_result = self._poll_operation(
-                operation_name=response.operation.name if hasattr(response, "operation") else response.name,
+            final_result = self._poll_rest_operation(
+                operation_name=operation_name,
                 result=result,
             )
 
-            # Download if completed and output_path specified
+            # Save video if completed and output_path specified
             if final_result.status == GenerationStatus.COMPLETED and output_path:
-                final_result.output_uri = output_uri
-                self._download_from_gcs(output_uri, output_path)
-                final_result.local_path = output_path
-                logger.info(f"Downloaded generated video to {output_path}")
+                # Check if video was returned as base64
+                if "video_base64" in final_result.metadata:
+                    import base64
+                    video_data = base64.b64decode(final_result.metadata["video_base64"])
+                    output_path.parent.mkdir(parents=True, exist_ok=True)
+                    with open(output_path, "wb") as f:
+                        f.write(video_data)
+                    final_result.local_path = output_path
+                    logger.info(f"Saved generated video to {output_path}")
+                    # Clean up base64 data from metadata to save memory
+                    del final_result.metadata["video_base64"]
+                # Otherwise try to download from GCS
+                elif final_result.output_uri:
+                    try:
+                        self._download_from_gcs(final_result.output_uri, output_path)
+                        final_result.local_path = output_path
+                        logger.info(f"Downloaded generated video to {output_path}")
+                    except google_exceptions.NotFound:
+                        logger.error(f"Output file not found at {final_result.output_uri}")
+                        final_result.error_message = f"Output file not found at {final_result.output_uri}"
+                else:
+                    logger.warning("No video data or URI found in response")
 
             return final_result
 
@@ -266,57 +307,221 @@ class VeoClient:
         duration: float,
         aspect_ratio: str,
         output_uri: str,
+        reference_image_b64: Optional[str] = None,
     ):
-        """Submit a video generation request to Veo 3.
+        """Submit a video generation request to Veo via REST API.
 
         This method interfaces with the Vertex AI video generation API.
-        """
-        # Vertex AI endpoint for Veo 3
-        endpoint = f"projects/{self._project_id}/locations/{self._location}/publishers/google/models/veo-3"
 
-        # Construct the generation request
-        # Veo 3 uses a specific request format via Vertex AI
-        request = {
-            "instances": [
-                {
-                    "prompt": prompt,
-                }
-            ],
+        Args:
+            prompt: Text description of the video.
+            duration: Duration in seconds.
+            aspect_ratio: Video aspect ratio.
+            output_uri: GCS URI for output (may not be used by Veo).
+            reference_image_b64: Optional base64-encoded reference image for
+                image-to-video generation with character consistency.
+        """
+        import requests
+        import google.auth
+        import google.auth.transport.requests
+
+        # Get credentials with Vertex AI scopes
+        scopes = ["https://www.googleapis.com/auth/cloud-platform"]
+        credentials, project = google.auth.default(scopes=scopes)
+        auth_req = google.auth.transport.requests.Request()
+        credentials.refresh(auth_req)
+
+        # Vertex AI endpoint for Veo - predictLongRunning
+        url = (
+            f"https://{self._location}-aiplatform.googleapis.com/v1/"
+            f"projects/{self._project_id}/locations/{self._location}/"
+            f"publishers/google/models/{self._model}:predictLongRunning"
+        )
+
+        # Map aspect ratio to Veo API format
+        # Veo uses "16:9" or "9:16" directly, not "16x9"
+        aspect_ratio_map = {
+            "16:9": "16:9",
+            "9:16": "9:16",
+            "16x9": "16:9",
+            "9x16": "9:16",
+            "1:1": "1:1",
+        }
+        veo_aspect_ratio = aspect_ratio_map.get(aspect_ratio, "16:9")
+
+        # Construct the instance - include reference image if provided
+        instance = {"prompt": prompt}
+        if reference_image_b64:
+            # Image-to-video: include the reference image
+            instance["image"] = {
+                "bytesBase64Encoded": reference_image_b64,
+                "mimeType": "image/png",
+            }
+            logger.info("Including reference image in generation request")
+
+        # Construct the generation request per Veo API spec
+        request_body = {
+            "instances": [instance],
             "parameters": {
-                "aspectRatio": aspect_ratio.replace(":", "x"),  # "16x9" format
+                "aspectRatio": veo_aspect_ratio,
+                "sampleCount": 1,
                 "durationSeconds": int(duration),
-                "outputGcsUri": output_uri,
             },
         }
 
-        # Use Vertex AI prediction client
-        from google.cloud.aiplatform_v1 import PredictionServiceClient
-        from google.cloud.aiplatform_v1.types import PredictRequest
+        headers = {
+            "Authorization": f"Bearer {credentials.token}",
+            "Content-Type": "application/json",
+        }
 
-        client_options = {"api_endpoint": f"{self._location}-aiplatform.googleapis.com"}
-        client = PredictionServiceClient(client_options=client_options)
+        logger.debug(f"Request URL: {url}")
+        logger.debug(f"Request body keys: {list(request_body.keys())}")
+        response = requests.post(url, json=request_body, headers=headers)
 
-        # For long-running video generation, we use async predict
-        from google.protobuf.struct_pb2 import Value
-        import json
+        if response.status_code != 200:
+            raise google_exceptions.GoogleAPICallError(
+                f"{response.status_code} {response.text}"
+            )
 
-        instances = [json_format.ParseDict(inst, Value()) for inst in request["instances"]]
-        parameters = json_format.ParseDict(request["parameters"], Value())
+        return response.json()
 
-        response = client.predict(
-            endpoint=endpoint,
-            instances=instances,
-            parameters=parameters,
-        )
+    def _poll_rest_operation(
+        self,
+        operation_name: str,
+        result: GenerationResult,
+    ) -> GenerationResult:
+        """Poll a long-running operation via REST API until completion or timeout.
 
-        return response
+        Args:
+            operation_name: The operation resource name to poll.
+            result: The GenerationResult to update.
+
+        Returns:
+            Updated GenerationResult with final status.
+        """
+        import requests
+        import google.auth
+        import google.auth.transport.requests
+
+        start_time = time.time()
+        poll_count = 0
+
+        # Get credentials with Vertex AI scopes
+        scopes = ["https://www.googleapis.com/auth/cloud-platform"]
+        credentials, _ = google.auth.default(scopes=scopes)
+        auth_req = google.auth.transport.requests.Request()
+
+        while True:
+            elapsed = time.time() - start_time
+            if elapsed > self._max_poll_time:
+                logger.warning(f"Operation {operation_name} timed out after {elapsed:.1f}s")
+                result.status = GenerationStatus.FAILED
+                result.error_message = f"Operation timed out after {self._max_poll_time}s"
+                result.completed_at = datetime.now()
+                return result
+
+            poll_count += 1
+            logger.debug(f"Polling operation (attempt {poll_count}): {operation_name}")
+
+            try:
+                # Refresh credentials if needed
+                credentials.refresh(auth_req)
+
+                # For publisher model operations, use fetchPredictOperation
+                # Operation name format: projects/{project}/locations/{location}/publishers/google/models/{model}/operations/{op_id}
+                if "/publishers/google/models/" in operation_name:
+                    # Extract model path and operation ID
+                    parts = operation_name.rsplit("/operations/", 1)
+                    model_path = parts[0]
+                    op_id = parts[1] if len(parts) > 1 else ""
+                    url = (
+                        f"https://{self._location}-aiplatform.googleapis.com/v1/"
+                        f"{model_path}:fetchPredictOperation"
+                    )
+                    # POST request with operation name in body
+                    headers = {
+                        "Authorization": f"Bearer {credentials.token}",
+                        "Content-Type": "application/json",
+                    }
+                    body = {"operationName": operation_name}
+                    logger.debug(f"Polling URL: {url}")
+                    response = requests.post(url, json=body, headers=headers)
+                else:
+                    url = f"https://{self._location}-aiplatform.googleapis.com/v1/{operation_name}"
+                    headers = {
+                        "Authorization": f"Bearer {credentials.token}",
+                    }
+                    logger.debug(f"Polling URL: {url}")
+                    response = requests.get(url, headers=headers)
+
+                if response.status_code != 200:
+                    logger.warning(f"Poll request failed: {response.status_code}")
+                    logger.debug(f"Response: {response.text[:500]}")
+                    time.sleep(self._poll_interval)
+                    continue
+
+                op_status = response.json()
+
+                if op_status.get("done"):
+                    # Save full response to file for debugging
+                    debug_file = Path(f"veo_response_{result.operation_id}.json")
+                    try:
+                        with open(debug_file, "w") as f:
+                            json.dump(op_status, f, indent=2, default=str)
+                        logger.info(f"Saved full response to {debug_file}")
+                    except Exception as e:
+                        logger.warning(f"Failed to save debug response: {e}")
+
+                    if "error" in op_status:
+                        error = op_status["error"]
+                        error_msg = error.get("message", str(error))
+                        logger.error(f"Operation {operation_name} failed: {error_msg}")
+                        result.status = GenerationStatus.FAILED
+                        result.error_message = error_msg
+                        result.completed_at = datetime.now()
+                        return result
+                    else:
+                        logger.info(f"Operation {operation_name} completed successfully")
+                        result.status = GenerationStatus.COMPLETED
+                        result.completed_at = datetime.now()
+                        # Extract video data from response
+                        if "response" in op_status:
+                            resp = op_status["response"]
+                            # Veo returns video as base64-encoded data in response.videos[]
+                            if "videos" in resp and resp["videos"]:
+                                video = resp["videos"][0]
+                                if "bytesBase64Encoded" in video:
+                                    result.metadata["video_base64"] = video["bytesBase64Encoded"]
+                                    result.metadata["mime_type"] = video.get("mimeType", "video/mp4")
+                                    logger.info("Video data received as base64")
+                                elif "uri" in video or "gcsUri" in video:
+                                    result.output_uri = video.get("uri") or video.get("gcsUri")
+                                    logger.info(f"Output URI: {result.output_uri}")
+                            # Fallback: check other possible structures
+                            elif "generateVideoResponse" in resp:
+                                gen_resp = resp["generateVideoResponse"]
+                                if "generatedSamples" in gen_resp and gen_resp["generatedSamples"]:
+                                    video = gen_resp["generatedSamples"][0].get("video", {})
+                                    if "bytesBase64Encoded" in video:
+                                        result.metadata["video_base64"] = video["bytesBase64Encoded"]
+                                        result.metadata["mime_type"] = video.get("mimeType", "video/mp4")
+                                        logger.info("Video data received as base64")
+                        return result
+
+                # Still processing
+                result.status = GenerationStatus.PROCESSING
+
+            except Exception as e:
+                logger.warning(f"Error checking operation status: {e}")
+
+            time.sleep(self._poll_interval)
 
     def _poll_operation(
         self,
         operation_name: str,
         result: GenerationResult,
     ) -> GenerationResult:
-        """Poll an operation until completion or timeout.
+        """Poll an operation by name until completion or timeout (legacy).
 
         Args:
             operation_name: The operation resource name to poll.

@@ -33,6 +33,10 @@ class Config(BaseModel):
         default_factory=lambda: os.getenv("VEO_OUTPUT_BUCKET", ""),
         description="GCS bucket for Veo output"
     )
+    veo_model: str = Field(
+        default_factory=lambda: os.getenv("VEO_MODEL", "veo-3.1-fast-generate-001"),
+        description="Veo model name"
+    )
     
     # Paths
     workspace: Path = Field(
