@@ -14,7 +14,7 @@ class Manifest(BaseModel):
     project_name: str = Field(..., description="Project name")
     audio_file: Optional[str] = Field(None, description="Path to background music")
     scenes: List[Scene] = Field(default_factory=list, description="List of scenes")
-    aspect_ratio: str = Field(default="16:9", description="Output aspect ratio")
+    aspect_ratio: str = Field(default="9:16", description="Output aspect ratio")
     output_format: str = Field(default="mp4", description="Output video format")
     
     class Config:

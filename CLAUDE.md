@@ -22,14 +22,26 @@ A CLI-based tool to create video content from idea to final render using AI agen
 
 ## CLI Usage
 ```bash
-# Full pipeline
-video-maker create "Man's Purpose - spiritual journey, 90s"
+# All commands default to script.yaml and can be overridden with --script
 
-# Or step-by-step
-video-maker research "Man's Purpose" --duration 90 > scenes.json
-video-maker music scenes.json > music.mp3
-video-maker veo scenes.json --output clips/
-video-maker assemble scenes.json clips/ music.mp3 --output final.mp4
+# 1. Generate scene descriptions from an idea
+video-maker research "Man's Purpose - spiritual journey, 90s" --duration 90
+
+# 2. Check project status
+video-maker status
+video-maker status --script custom.yaml
+
+# 3. Generate a character reference image (for consistency across scenes)
+video-maker imagen "12-year-old Asian girl with short black hair, school uniform" -o assets/character.png
+
+# 4. Generate video clips via Veo 3 (with optional character reference)
+video-maker veo
+video-maker veo --reference assets/character.png   # Use character image for consistency
+video-maker veo --script custom.yaml --output clips/
+
+# 5. Assemble final video
+video-maker assemble
+video-maker assemble --script custom.yaml --clips clips/ --music song.mp3 --output final.mp4
 ```
 
 ## Directory Structure
@@ -40,13 +52,26 @@ video-maker assemble scenes.json clips/ music.mp3 --output final.mp4
 │   ├── music/       # Input audio
 │   └── fonts/
 ├── output/
-├── src/
-│   ├── main.py
-│   ├── manifest.py
-│   ├── editor.py    # MoviePy logic
-│   ├── lyrics.py    # Whisper logic
-│   └── generator.py # Google Veo / Vertex AI Client
-├── script.yaml
+├── clips/           # Default Veo output directory
+├── src/mvg/
+│   ├── cli.py       # CLI entry point (Typer)
+│   ├── config.py    # Environment configuration
+│   ├── agents/
+│   │   ├── base.py      # Abstract base agent
+│   │   └── research.py  # Scene generation agent
+│   ├── models/
+│   │   ├── scene.py     # Scene data model
+│   │   ├── manifest.py  # Project manifest
+│   │   └── project.py   # Project state
+│   ├── services/
+│   │   ├── anthropic.py # Claude API client
+│   │   └── veo.py       # Google Veo 3 client
+│   └── editor/
+│       ├── compositor.py # Video stitching
+│       ├── audio.py      # Audio processing
+│       └── overlays.py   # Text overlays
+├── script.yaml      # Default manifest file
+├── pyproject.toml
 └── requirements.txt
 ```
 
@@ -68,11 +93,12 @@ scenes:
 
 ## Tech Stack
 - **Python 3.10+**
+- **Typer:** CLI framework
+- **Pydantic:** Data validation & settings
 - **MoviePy:** Video editing & assembly
-- **OpenAI Whisper:** Lyrics transcription
-- **Google-Cloud-AI-Platform:** Veo 3 clip generation
-- **Claude/Gemini:** Research & assembly agents
-- **Click/Typer:** CLI framework
+- **Anthropic SDK:** Claude API for research agent
+- **Google Cloud AI Platform:** Veo 3 clip generation
+- **OpenAI Whisper:** Lyrics transcription (planned)
 
 ## Implementation Notes
 
@@ -103,10 +129,13 @@ scenes:
 - Outputs final MP4
 
 ## Roadmap
-- [ ] Basic CLI scaffold (Click)
-- [ ] Research agent (prompt engineering)
-- [ ] Veo API client stub
-- [ ] Assembly pipeline (MoviePy)
-- [ ] Text overlay templates
-- [ ] Music integration
+- [x] Basic CLI scaffold (Typer)
+- [x] Research agent (Claude-powered scene generation)
+- [x] Veo API client (structure ready, API calls stubbed)
+- [x] Assembly pipeline (MoviePy)
+- [x] Text overlay templates
+- [x] Audio sync & processing
+- [ ] Complete Veo 3 API integration
+- [ ] Lyrics/Whisper transcription
+- [ ] Music selection agent
 - [ ] End-to-end test with "Man's Purpose" project

@@ -146,7 +146,7 @@ def resize_clip(
 
 def crop_to_aspect(
     clip: VideoFileClip,
-    aspect_ratio: str = "16:9"
+    aspect_ratio: str = "9:16"
 ) -> VideoFileClip:
     """Crop a video clip to a specific aspect ratio.
 
