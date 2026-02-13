@@ -156,7 +156,7 @@ class VeoClient:
         self,
         prompt: str,
         duration: float = 8.0,
-        aspect_ratio: str = "16:9",
+        aspect_ratio: str = "9:16",
         output_path: Optional[Path] = None,
         scene_id: Optional[str] = None,
         reference_image: Optional[Path] = None,
@@ -347,26 +347,35 @@ class VeoClient:
             "9x16": "9:16",
             "1:1": "1:1",
         }
-        veo_aspect_ratio = aspect_ratio_map.get(aspect_ratio, "16:9")
+        veo_aspect_ratio = aspect_ratio_map.get(aspect_ratio, "9:16")
 
-        # Construct the instance - include reference image if provided
+        # Construct the instance
         instance = {"prompt": prompt}
-        if reference_image_b64:
-            # Image-to-video: include the reference image
-            instance["image"] = {
-                "bytesBase64Encoded": reference_image_b64,
-                "mimeType": "image/png",
-            }
-            logger.info("Including reference image in generation request")
 
         # Construct the generation request per Veo API spec
+        parameters = {
+            "aspectRatio": veo_aspect_ratio,
+            "sampleCount": 1,
+            "durationSeconds": int(duration),
+            "generateAudio": False,  # Audio will be added during assembly
+        }
+
+        # Add reference image for character/style consistency (not image-to-video)
+        if reference_image_b64:
+            parameters["referenceImages"] = [
+                {
+                    "referenceType": "REFERENCE_TYPE_STYLE",
+                    "referenceId": 1,
+                    "image": {
+                        "bytesBase64Encoded": reference_image_b64,
+                    },
+                }
+            ]
+            logger.info("Including reference image for style consistency")
+
         request_body = {
             "instances": [instance],
-            "parameters": {
-                "aspectRatio": veo_aspect_ratio,
-                "sampleCount": 1,
-                "durationSeconds": int(duration),
-            },
+            "parameters": parameters,
         }
 
         headers = {

@@ -181,7 +181,7 @@ def research(
     manifest = Manifest(
         project_name=project_name,
         scenes=generated_scenes,
-        aspect_ratio="16:9",
+        aspect_ratio="9:16",
         output_format="mp4",
     )
 
@@ -490,6 +490,12 @@ def veo(
         "-r",
         help="Reference image for character consistency (use 'imagen' command to generate)"
     ),
+    limit: Optional[int] = typer.Option(
+        None,
+        "--limit",
+        "-l",
+        help="Limit number of scenes to generate (for testing)"
+    ),
     verbose: bool = typer.Option(
         False,
         "--verbose",
@@ -528,7 +534,7 @@ def veo(
     typer.echo(f"   Total scenes: {len(manifest.scenes)}")
 
     # Determine aspect ratio
-    ratio = aspect_ratio or manifest.aspect_ratio or "16:9"
+    ratio = aspect_ratio or manifest.aspect_ratio or "9:16"
     if ratio not in ("16:9", "9:16"):
         typer.echo(f"❌ Invalid aspect ratio: {ratio}. Must be '16:9' or '9:16'")
         raise typer.Exit(1)
@@ -560,6 +566,10 @@ def veo(
             continue
 
         scenes_to_generate.append((i, scene))
+
+    # Apply limit if specified
+    if limit and limit > 0:
+        scenes_to_generate = scenes_to_generate[:limit]
 
     # Show summary
     typer.echo(f"\n📋 Generation Plan:")
