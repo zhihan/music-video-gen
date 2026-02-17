@@ -192,6 +192,152 @@ def imagen(
     )
 
 
+@app.command()
+def music(
+    audio_file: Path = typer.Argument(
+        ...,
+        help="Local audio file to cover/remix "
+        "(max 8 min)",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+    ),
+    prompt: str = typer.Option(
+        ...,
+        "--prompt",
+        "-p",
+        help="Text description or lyrics prompt",
+    ),
+    style: str | None = typer.Option(
+        None,
+        "--style",
+        "-s",
+        help="Music style tags (e.g. 'Pop, Upbeat'). "
+        "Enables custom mode",
+    ),
+    title: str | None = typer.Option(
+        None,
+        "--title",
+        "-t",
+        help="Song title (used with --style)",
+    ),
+    model: str = typer.Option(
+        "V5",
+        "--model",
+        "-m",
+        help="Suno model version "
+        "(V4, V4_5, V4_5PLUS, V4_5ALL, V5)",
+    ),
+    instrumental: bool = typer.Option(
+        False,
+        "--instrumental",
+        "-i",
+        help="Generate instrumental only (no vocals)",
+    ),
+    vocal_gender: str | None = typer.Option(
+        None,
+        "--vocal-gender",
+        help="Vocal gender: 'm' or 'f'",
+    ),
+    output: Path = typer.Option(
+        Path("./assets/music/generated.mp3"),
+        "--output",
+        "-o",
+        help="Output audio file path",
+    ),
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        help="Enable verbose logging",
+    ),
+) -> None:
+    """Cover/remix audio using KIE.ai (Suno).
+
+    Uploads a local audio file to KIE.ai, then submits
+    a cover request. Polls until ready and downloads
+    the result.
+    """
+    from .services.kie import KieClient
+
+    setup_logging(verbose)
+
+    try:
+        config.validate_kie_required()
+    except ValueError as e:
+        typer.echo(f"Configuration error: {e}")
+        raise typer.Exit(1)
+
+    typer.echo("Covering audio with KIE.ai (Suno)")
+    typer.echo(f"   Source: {audio_file}")
+    typer.echo(f"   Prompt: {prompt[:70]}")
+    if style:
+        typer.echo(f"   Style: {style}")
+    if title:
+        typer.echo(f"   Title: {title}")
+    typer.echo(f"   Model: {model}")
+    typer.echo(
+        f"   Instrumental: {instrumental}"
+    )
+
+    try:
+        client = KieClient(model=model)
+    except ValueError as e:
+        typer.echo(f"Configuration error: {e}")
+        raise typer.Exit(1)
+
+    typer.echo("\nUploading audio file...")
+
+    result = client.upload_and_cover(
+        audio_file=audio_file,
+        prompt=prompt,
+        style=style,
+        title=title,
+        instrumental=instrumental,
+        vocal_gender=vocal_gender,
+        output_path=output,
+    )
+
+    if result.status not in (
+        "SUCCESS",
+        "FIRST_SUCCESS",
+    ):
+        error = result.error_message or "Unknown error"
+        typer.echo(f"\nGeneration failed: {error}")
+        if result.task_id:
+            typer.echo(
+                f"   Task ID: {result.task_id}"
+            )
+        raise typer.Exit(1)
+
+    typer.echo("\nCover complete!")
+    if result.title:
+        typer.echo(f"   Title: {result.title}")
+    if result.duration:
+        typer.echo(
+            f"   Duration: {result.duration:.1f}s"
+        )
+    if result.local_path:
+        typer.echo(f"   Saved to: {result.local_path}")
+    if result.task_id:
+        typer.echo(
+            f"   Task ID: {result.task_id}"
+        )
+    if result.metadata.get("audio_id"):
+        typer.echo(
+            f"   Audio ID: "
+            f"{result.metadata['audio_id']}"
+        )
+        typer.echo(
+            "\nTo get timestamped lyrics:"
+        )
+        typer.echo(
+            f"   video-maker lyrics "
+            f"--task-id {result.task_id} "
+            f"--audio-id "
+            f"{result.metadata['audio_id']}"
+        )
+
+
 @app.command(name="generate-script")
 def generate_script(
     script: Path = typer.Option(

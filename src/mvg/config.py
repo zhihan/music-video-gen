@@ -54,6 +54,12 @@ class Config(BaseModel):
         ),
         description="Veo model name",
     )
+    kie_api_key: str = Field(
+        default_factory=lambda: os.getenv(
+            "KIE_API_KEY", ""
+        ),
+        description="KIE.ai API key",
+    )
 
     # Paths
     workspace: Path = Field(
@@ -77,6 +83,18 @@ class Config(BaseModel):
         """
         if not self.anthropic_api_key:
             raise ValueError("ANTHROPIC_API_KEY not set")
+
+    def validate_kie_required(self) -> None:
+        """Validate KIE.ai API key is set.
+
+        Raises:
+            ValueError: If KIE_API_KEY is not set.
+        """
+        if not self.kie_api_key:
+            raise ValueError(
+                "KIE_API_KEY not set. "
+                "Get your API key at https://kie.ai/"
+            )
 
     def validate_veo_required(self) -> None:
         """Validate Veo 3 / Google Cloud credentials.
