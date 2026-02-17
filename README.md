@@ -28,6 +28,7 @@ Required:
 
 Optional:
 - `ANTHROPIC_API_KEY`: For Claude API integration
+- `KIE_API_KEY`: For KIE.ai music generation (Suno)
 
 ## Usage
 
@@ -53,7 +54,8 @@ video-maker --version
 - MoviePy assembly script generation with text overlays
 
 **Planned:**
-- Lyrics/subtitles (Whisper transcription)
+- KIE.ai music generation (Suno)
+- Timestamped lyrics & subtitle burn-in
 
 ## Architecture
 

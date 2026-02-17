@@ -42,6 +42,7 @@ music-video-gen/
 │       │   ├── __init__.py
 │       │   ├── veo.py          # Google Veo 3 client
 │       │   ├── imagen.py       # Google Imagen client
+│       │   ├── kie.py          # KIE.ai client (Suno music)
 │       │   └── anthropic.py    # Claude API wrapper
 │       │
 │       └── editor/             # Video editing
@@ -65,6 +66,8 @@ music-video-gen/
 | `status` | Show project state |
 | `imagen <prompt>` | Generate reference image |
 | `veo` | Generate clips via Veo 3 |
+| `music <prompt>` | Generate music via KIE.ai (Suno) |
+| `lyrics` | Get timestamped lyrics for a generated song |
 | `generate-script` | Generate MoviePy assembly script with text overlays |
 
 ### 2.2 Models (`models/`)
@@ -90,6 +93,7 @@ music-video-gen/
 |---------|-----|---------|
 | `VeoClient` | Google Vertex AI (Veo 3) | Generate video clips |
 | `ImagenClient` | Google Vertex AI (Imagen) | Generate reference images |
+| `KieClient` | KIE.ai (Suno) | Generate music + timestamped lyrics |
 | `ClaudeClient` | Anthropic API | Claude API wrapper |
 
 ### 2.5 Editor (`editor/`)
@@ -127,12 +131,21 @@ music-video-gen/
 - [x] `veo` CLI command with dry-run, skip-existing, reference image support
 - [x] Imagen client for character reference images
 
-### Phase 4: Lyrics/Subtitles (Planned)
+### Phase 4: KIE.ai Music Generation (Planned)
 **Deliverables:**
-- [ ] Whisper transcription client
-- [ ] SRT/VTT generation
-- [ ] Subtitle burn-in
-- [ ] `transcribe` CLI command
+- [ ] KIE.ai API client (`services/kie.py`)
+- [ ] `music` CLI command (generate songs from prompts)
+- [ ] Task polling with progress display
+- [ ] Download generated audio to `assets/music/`
+- [ ] `music` section support in `script.yaml`
+
+### Phase 5: Lyrics & Subtitles (Planned)
+**Dependencies:** Phase 4
+**Deliverables:**
+- [ ] Timestamped lyrics via KIE.ai API
+- [ ] `lyrics` CLI command
+- [ ] SRT generation from word-level timestamps
+- [ ] Subtitle burn-in in assembly scripts
 
 ---
 
@@ -168,7 +181,46 @@ GOOGLE_CLOUD_PROJECT=your-project-id
 VEO_OUTPUT_BUCKET=gs://your-bucket
 ```
 
-### 4.2 Anthropic Claude
+### 4.2 KIE.ai (Suno Music Generation)
+
+**Base URL:** `https://api.kie.ai/api/v1`
+**Authentication:** Bearer token (API key)
+**Docs:** [docs.kie.ai](https://docs.kie.ai/)
+
+```python
+# Generate music
+POST /generate
+{
+    "prompt": "lyrics or description",
+    "customMode": True,
+    "style": "Pop, Upbeat",
+    "title": "My Song",
+    "model": "V5",
+    "instrumental": False,
+    "vocalGender": "f",
+    "callBackUrl": "https://..."
+}
+# Returns: {"data": {"taskId": "..."}}
+
+# Poll task status
+GET /jobs/recordInfo?taskId=...
+# Returns: state, audio_url, duration, etc.
+
+# Get timestamped lyrics
+POST /generate/get-timestamped-lyrics
+{
+    "taskId": "...",
+    "audioId": "..."
+}
+# Returns: alignedWords[{word, startS, endS}]
+```
+
+**Environment variables:**
+```
+KIE_API_KEY=your-kie-api-key
+```
+
+### 4.3 Anthropic Claude
 
 **Endpoint:** `https://api.anthropic.com/v1/messages`
 **Authentication:** API key
@@ -214,6 +266,19 @@ video-maker
 │   ├── --dry-run                    # Show plan without calling API
 │   └── --limit INT                  # Limit scenes to generate
 │
+├── music <prompt>                   # Generate music via KIE.ai
+│   ├── --style TEXT                 # Music style (e.g., "Pop, Upbeat")
+│   ├── --title TEXT                 # Song title
+│   ├── --model TEXT                 # Model version (V4, V4_5, V5)
+│   ├── --instrumental              # Instrumental only (no vocals)
+│   ├── --vocal-gender TEXT          # "m" or "f"
+│   └── --output PATH               # Output audio file path
+│
+├── lyrics                           # Get timestamped lyrics
+│   ├── --task-id TEXT               # Music generation task ID
+│   ├── --audio-id TEXT              # Audio track ID
+│   └── --output PATH               # Output SRT file path
+│
 └── generate-script                  # Generate MoviePy assembly script
     ├── --script PATH                # Path to script.yaml
     ├── --clips PATH                 # Clips directory
@@ -243,6 +308,7 @@ python-dotenv>=1.0    # Environment management
 ```
 anthropic>=0.25       # Claude API
 google-cloud-aiplatform>=1.45  # Veo 3 + Imagen
+requests>=2.31        # KIE.ai API calls
 ```
 
 ### Video/Audio
