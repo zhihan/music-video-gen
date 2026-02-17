@@ -467,10 +467,10 @@ def veo(
         max=10
     ),
     skip_existing: bool = typer.Option(
-        False,
-        "--skip-existing",
-        "-k",
-        help="Skip scenes that already have clip files"
+        True,
+        "--skip-existing/--regenerate",
+        "-k/-K",
+        help="Skip scenes that already have clip files (default: skip existing)"
     ),
     dry_run: bool = typer.Option(
         False,

@@ -47,3 +47,4 @@ script.yaml
 manifest.yaml
 music-creator.json
 generation_metadata.json
+.DS_Store
