@@ -61,7 +61,7 @@ SCENES = {
     "steel_tracks": {"duration": 8.0, "overlay_text": '...like the ways unknown.'},
     "clouds": {"duration": 8.0, "overlay_text": "As You lead me a way that I don't understand,"},
     "open_sea": {"duration": 8.0, "overlay_text": 'I only can open to You.'},
-    "footsteps_montage": {"duration": 8.0, "overlay_text": "This leads to thousands of conversations: 'Who are You, Lord? What shall I do?'"},
+    "footsteps_montage": {"duration": 8.0, "overlay_text": "This leads to thousands of conversations: 'Who are You,\nLord? What shall I do?'"},
     "ascent": {"duration": 8.0, "overlay_text": 'Each one forms a piece of our journey together,'},
     "peak": {"duration": 8.0, "overlay_text": 'An eternal memorial between me and You.'},
     "reveal": {"duration": 6.0, "overlay_text": None},
@@ -124,7 +124,7 @@ def create_title_overlay(duration: float, video_size: tuple[int, int]) -> TextCl
     """Create the title overlay clip."""
     width, height = video_size
 
-    title_height = 160  # Increased for larger font
+    title_height = 210  # Increased for larger font
     title_clip = TextClip(
         text=TITLE_TEXT,
         font=FONT,
