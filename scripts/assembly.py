@@ -36,7 +36,7 @@ VIDEO_HEIGHT = 1920
 # Title configuration
 TITLE_TEXT = "Thousands of Conversation"
 TITLE_DURATION = 4.0  # How long the title shows
-TITLE_FONT_SIZE = 72
+TITLE_FONT_SIZE = 96
 LYRICS_DELAY = 3.0  # Delay first lyrics to make room for title
 
 # Text styling constants (adjust these to change all text at once)
@@ -113,8 +113,8 @@ def create_text_overlay(
     if start_time > 0:
         text_clip = text_clip.with_start(start_time)
 
-    # Position at center of screen (slightly above center for better visual balance)
-    y_position = (height - text_height) // 2 - 100
+    # Position at 3/4 down the screen
+    y_position = int(height * 0.75) - text_height // 2
     text_clip = text_clip.with_position(("center", y_position))
 
     return text_clip
@@ -124,21 +124,22 @@ def create_title_overlay(duration: float, video_size: tuple[int, int]) -> TextCl
     """Create the title overlay clip."""
     width, height = video_size
 
+    title_height = 160  # Increased for larger font
     title_clip = TextClip(
         text=TITLE_TEXT,
         font=FONT,
         font_size=TITLE_FONT_SIZE,
         color=TEXT_COLOR,
         bg_color=TEXT_BG,
-        size=(TEXT_WIDTH, 120),
+        size=(TEXT_WIDTH, title_height),
         method="caption",
         text_align="center",
         vertical_align="center",
     )
     title_clip = title_clip.with_duration(duration)
 
-    # Position title at center
-    y_position = (height - 120) // 2 - 100
+    # Position title at 1/3 down the screen
+    y_position = int(height * 0.33) - title_height // 2
     title_clip = title_clip.with_position(("center", y_position))
 
     return title_clip
