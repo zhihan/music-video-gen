@@ -146,6 +146,19 @@ Rather than a fixed automated pipeline, assembly is handled interactively by Cla
 - [x] Text overlay presets (title, text, subtitle)
 - [ ] Lyrics/Whisper transcription
 
+## Code Style
+
+Follow the [Google Python Style Guide](https://google.github.io/styleguide/pyguide.html).
+
+Key points:
+- Use `snake_case` for functions/variables, `PascalCase` for classes
+- Use type annotations for function signatures
+- Use docstrings with Google-style format (`Args:`, `Returns:`, `Raises:`)
+- Max line length: 80 characters
+- Use `from __future__ import annotations` for forward references
+- Imports: stdlib, blank line, third-party, blank line, local. Alphabetized within each group.
+- Avoid mutable default arguments (use `None` + assignment in body)
+
 ## MoviePy Style Guide
 
 ### Text Overlays

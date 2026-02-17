@@ -1,9 +1,10 @@
 """Audio processing for video assembly."""
 
-from pathlib import Path
-from typing import Optional
+from __future__ import annotations
 
-from moviepy import AudioFileClip, VideoClip, CompositeAudioClip
+from pathlib import Path
+
+from moviepy import AudioFileClip, CompositeAudioClip, VideoClip
 from moviepy.audio.fx import AudioFadeIn, AudioFadeOut
 
 
@@ -20,8 +21,9 @@ def load_audio(audio_path: Path) -> AudioFileClip:
         FileNotFoundError: If audio file doesn't exist.
     """
     if not audio_path.exists():
-        raise FileNotFoundError(f"Audio file not found: {audio_path}")
-
+        raise FileNotFoundError(
+            f"Audio file not found: {audio_path}"
+        )
     return AudioFileClip(str(audio_path))
 
 
@@ -29,16 +31,17 @@ def sync_audio(
     video: VideoClip,
     audio_path: Path,
     loop: bool = True,
-    fade_out: float = 0.0
+    fade_out: float = 0.0,
 ) -> VideoClip:
-    """Sync audio with video, adjusting duration as needed.
+    """Sync audio with video, adjusting duration.
 
     Args:
         video: Video clip to add audio to.
         audio_path: Path to audio file.
-        loop: If True, loop audio to match video duration.
-            If False, trim audio to video duration.
-        fade_out: Duration of fade out at the end (seconds).
+        loop: If True, loop audio to match video
+            duration. If False, trim audio.
+        fade_out: Duration of fade out at the end
+            (seconds).
 
     Returns:
         Video clip with synchronized audio.
@@ -47,13 +50,10 @@ def sync_audio(
     video_duration = video.duration
 
     if audio.duration < video_duration and loop:
-        # Loop audio to match video duration
         audio = loop_audio(audio, video_duration)
     elif audio.duration > video_duration:
-        # Trim audio to video duration
         audio = audio.subclipped(0, video_duration)
 
-    # Apply fade out if requested
     if fade_out > 0:
         audio = fade_audio(audio, fade_out=fade_out)
 
@@ -62,7 +62,7 @@ def sync_audio(
 
 def loop_audio(
     audio: AudioFileClip,
-    target_duration: float
+    target_duration: float,
 ) -> CompositeAudioClip:
     """Loop audio to match a target duration.
 
@@ -76,16 +76,14 @@ def loop_audio(
     if audio.duration >= target_duration:
         return audio.subclipped(0, target_duration)
 
-    # Calculate how many loops we need
-    loops_needed = int(target_duration / audio.duration) + 1
-
-    # Create multiple copies with appropriate start times
+    loops_needed = (
+        int(target_duration / audio.duration) + 1
+    )
     clips = []
     for i in range(loops_needed):
         clip = audio.with_start(i * audio.duration)
         clips.append(clip)
 
-    # Composite and trim to exact duration
     composite = CompositeAudioClip(clips)
     return composite.subclipped(0, target_duration)
 
@@ -93,7 +91,7 @@ def loop_audio(
 def fade_audio(
     audio: AudioFileClip,
     fade_in: float = 0.0,
-    fade_out: float = 0.0
+    fade_out: float = 0.0,
 ) -> AudioFileClip:
     """Apply fade in/out effects to audio.
 
@@ -109,25 +107,24 @@ def fade_audio(
 
     if fade_in > 0:
         effects.append(AudioFadeIn(fade_in))
-
     if fade_out > 0:
         effects.append(AudioFadeOut(fade_out))
 
     if effects:
         return audio.with_effects(effects)
-
     return audio
 
 
 def adjust_volume(
     audio: AudioFileClip,
-    factor: float = 1.0
+    factor: float = 1.0,
 ) -> AudioFileClip:
     """Adjust audio volume.
 
     Args:
         audio: Audio clip to adjust.
-        factor: Volume multiplier (1.0 = original, 0.5 = half, 2.0 = double).
+        factor: Volume multiplier (1.0 = original,
+            0.5 = half, 2.0 = double).
 
     Returns:
         Audio clip with adjusted volume.
@@ -138,23 +135,28 @@ def adjust_volume(
 def mix_audio(
     primary: AudioFileClip,
     secondary: AudioFileClip,
-    secondary_volume: float = 0.5
+    secondary_volume: float = 0.5,
 ) -> CompositeAudioClip:
     """Mix two audio tracks together.
 
     Args:
         primary: Primary audio track (full volume).
         secondary: Secondary audio track (background).
-        secondary_volume: Volume factor for secondary track.
+        secondary_volume: Volume factor for secondary
+            track.
 
     Returns:
         Mixed audio clip.
     """
-    secondary = adjust_volume(secondary, secondary_volume)
+    secondary = adjust_volume(
+        secondary, secondary_volume
+    )
     return CompositeAudioClip([primary, secondary])
 
 
-def extract_audio(video: VideoClip, output_path: Path) -> Path:
+def extract_audio(
+    video: VideoClip, output_path: Path
+) -> Path:
     """Extract audio from a video clip.
 
     Args:
@@ -163,6 +165,9 @@ def extract_audio(video: VideoClip, output_path: Path) -> Path:
 
     Returns:
         Path to extracted audio file.
+
+    Raises:
+        ValueError: If video has no audio track.
     """
     if video.audio is None:
         raise ValueError("Video has no audio track")

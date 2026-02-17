@@ -1,11 +1,13 @@
 """Base agent abstraction."""
 
+from __future__ import annotations
+
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Generic, TypeVar, Optional
+from typing import Generic, TypeVar
 
-from ..services.anthropic import AnthropicClient
 from ..config import config
+from ..services.anthropic import AnthropicClient
 
 logger = logging.getLogger(__name__)
 
@@ -16,24 +18,31 @@ OutputT = TypeVar("OutputT")
 class BaseAgent(ABC, Generic[InputT, OutputT]):
     """Abstract base class for AI agents.
 
-    Provides shared functionality for agents that use Claude for generation.
-    Subclasses must implement the `run` method and define their prompts.
+    Provides shared functionality for agents that use Claude
+    for generation. Subclasses must implement the ``run`` method
+    and define their prompts.
     """
 
     def __init__(
         self,
-        client: Optional[AnthropicClient] = None,
-        model: Optional[str] = None,
+        client: AnthropicClient | None = None,
+        model: str | None = None,
     ) -> None:
         """Initialize the agent.
 
         Args:
-            client: AnthropicClient instance. Created if not provided.
-            model: Model to use. Defaults to config.default_model.
+            client: AnthropicClient instance. Created if not
+                provided.
+            model: Model to use. Defaults to
+                config.default_model.
         """
         self._model = model or config.default_model
-        self._client = client or AnthropicClient(model=self._model)
-        self._logger = logging.getLogger(f"{__name__}.{self.name}")
+        self._client = client or AnthropicClient(
+            model=self._model
+        )
+        self._logger = logging.getLogger(
+            f"{__name__}.{self.name}"
+        )
 
     @property
     @abstractmethod
@@ -70,7 +79,7 @@ class BaseAgent(ABC, Generic[InputT, OutputT]):
         max_tokens: int = 4096,
         temperature: float = 0.7,
     ) -> str:
-        """Create a message using the agent's client and system prompt.
+        """Send a prompt using the agent's client.
 
         Args:
             prompt: The user prompt to send.
@@ -80,7 +89,10 @@ class BaseAgent(ABC, Generic[InputT, OutputT]):
         Returns:
             The text content of Claude's response.
         """
-        self._logger.debug(f"Creating message with prompt length: {len(prompt)}")
+        self._logger.debug(
+            "Creating message with prompt length: %d",
+            len(prompt),
+        )
 
         try:
             response = self._client.create_message(
@@ -89,9 +101,14 @@ class BaseAgent(ABC, Generic[InputT, OutputT]):
                 system=self.system_prompt,
                 temperature=temperature,
             )
-            self._logger.debug(f"Received response of length: {len(response)}")
+            self._logger.debug(
+                "Received response of length: %d",
+                len(response),
+            )
             return response
 
         except Exception as e:
-            self._logger.error(f"Error creating message: {e}")
+            self._logger.error(
+                "Error creating message: %s", e
+            )
             raise
