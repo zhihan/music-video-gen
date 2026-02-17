@@ -37,8 +37,7 @@ music-video-gen/
 │       ├── agents/             # AI agents
 │       │   ├── __init__.py
 │       │   ├── base.py         # Base agent class
-│       │   ├── research.py     # Research agent (Claude)
-│       │   └── assembly.py     # Assembly planning agent
+│       │   └── assembly.py     # Assembly planning agent (planned)
 │       │
 │       ├── services/           # External service integrations
 │       │   ├── __init__.py
@@ -76,13 +75,11 @@ music-video-gen/
 
 | Command | Description |
 |---------|-------------|
-| `create <idea>` | Full pipeline execution |
-| `research <idea>` | Generate scene descriptions |
-| `music <scenes>` | Select/validate music |
-| `veo <scenes>` | Generate clips via Veo 3 |
-| `assemble <scenes> <clips> <music>` | Stitch final video |
-| `transcribe <audio>` | Generate lyrics/subtitles |
 | `status` | Show project state |
+| `imagen <prompt>` | Generate reference image |
+| `veo` | Generate clips via Veo 3 |
+| `assemble` | Stitch final video |
+| `transcribe <audio>` | Generate lyrics/subtitles (planned) |
 
 ### 2.2 Models (`models/`)
 **Responsibility:** Data structures, validation, serialization
@@ -98,8 +95,7 @@ music-video-gen/
 
 | Agent | Input | Output |
 |-------|-------|--------|
-| `ResearchAgent` | Idea string, duration | List[Scene] with prompts |
-| `AssemblyAgent` | Manifest, clips | Assembly instructions |
+| `AssemblyAgent` | Manifest, clips | Assembly instructions (planned) |
 
 ### 2.4 Services (`services/`)
 **Responsibility:** External API integrations
@@ -157,24 +153,8 @@ src/mvg/editor/overlays.py
 src/mvg/editor/audio.py
 ```
 
-### Phase 3: Research Agent
+### Phase 3: Veo 3 Integration
 **Dependencies:** Phase 1
-**Deliverables:**
-- [ ] Claude API wrapper
-- [ ] Research agent with structured output
-- [ ] Prompt templates for scene generation
-- [ ] `research` CLI command
-
-**Key Files:**
-```
-src/mvg/services/anthropic.py
-src/mvg/agents/base.py
-src/mvg/agents/research.py
-templates/prompts/research.txt
-```
-
-### Phase 4: Veo 3 Integration
-**Dependencies:** Phase 1, Phase 3
 **Deliverables:**
 - [ ] Vertex AI / Veo 3 client
 - [ ] Async clip generation with polling
@@ -186,7 +166,7 @@ templates/prompts/research.txt
 src/mvg/services/veo.py
 ```
 
-### Phase 5: Lyrics/Subtitles
+### Phase 4: Lyrics/Subtitles
 **Dependencies:** Phase 2
 **Deliverables:**
 - [ ] Whisper transcription client
@@ -200,7 +180,7 @@ src/mvg/services/whisper.py
 src/mvg/editor/subtitles.py
 ```
 
-### Phase 6: Full Pipeline & Polish
+### Phase 5: Full Pipeline & Polish
 **Dependencies:** All previous phases
 **Deliverables:**
 - [ ] `create` command (end-to-end)
@@ -299,39 +279,33 @@ WHISPER_MODEL=large-v3  # For local
 ```
 video-maker
 │
-├── create <idea>                    # Full pipeline
-│   ├── --duration INT               # Target duration in seconds
-│   ├── --aspect [16:9|9:16]         # Output aspect ratio
-│   ├── --music PATH                 # Optional audio file
-│   └── --output PATH                # Output directory
+├── status                           # Show project state
+│   └── --script PATH                # Path to script.yaml
 │
-├── research <idea>                  # Generate scene descriptions
-│   ├── --duration INT               # Target duration
-│   ├── --scenes INT                 # Number of scenes (auto if omitted)
-│   ├── --style TEXT                 # Visual style hints
-│   └── --output PATH                # Output JSON file
+├── imagen <prompt>                  # Generate reference image
+│   ├── --output PATH                # Output image file
+│   ├── --aspect-ratio TEXT          # Image aspect ratio
+│   └── --negative TEXT              # Negative prompt
 │
-├── music <scenes-file>              # Music selection/validation
-│   ├── --file PATH                  # Specific audio file
-│   └── --output PATH                # Copy to output location
-│
-├── veo <scenes-file>                # Generate clips via Veo
+├── veo                              # Generate clips via Veo
+│   ├── --script PATH                # Path to script.yaml
 │   ├── --output PATH                # Output directory for clips
 │   ├── --parallel INT               # Concurrent generations (default: 3)
+│   ├── --reference PATH             # Reference image for consistency
 │   └── --skip-existing              # Don't regenerate existing clips
 │
-├── assemble <scenes> <clips> <music># Stitch final video
+├── assemble                         # Stitch final video
+│   ├── --script PATH                # Path to script.yaml
+│   ├── --clips PATH                 # Clips directory
+│   ├── --music PATH                 # Audio file
 │   ├── --output PATH                # Output file
 │   ├── --format [mp4|webm|mov]      # Container format
 │   └── --quality [draft|final]      # Encoding quality
 │
-├── transcribe <audio>               # Generate subtitles
-│   ├── --output PATH                # Output SRT/VTT file
-│   ├── --format [srt|vtt]           # Subtitle format
-│   └── --language TEXT              # Force language
-│
-└── status                           # Show project state
-    └── --project PATH               # Project directory
+└── transcribe <audio>               # Generate subtitles (planned)
+    ├── --output PATH                # Output SRT/VTT file
+    ├── --format [srt|vtt]           # Subtitle format
+    └── --language TEXT              # Force language
 ```
 
 **Entry point configuration (pyproject.toml):**
@@ -423,7 +397,6 @@ pytest tests/ --cov=mvg --cov-report=html
 | **Data models** | Low | Pydantic dataclasses, YAML parsing |
 | **Config management** | Low | Env vars, simple validation |
 | **Claude client** | Low | SDK wrapper, structured output parsing |
-| **Research agent** | Medium | Prompt engineering, output parsing |
 | **Veo client** | Medium-High | Async operations, GCS, polling, error handling |
 | **MoviePy compositor** | Medium | Clip concatenation, resizing, encoding |
 | **Text overlays** | Medium | Font handling, positioning, styling |

@@ -4,14 +4,13 @@
 A CLI-based tool to create video content from idea to final render using AI agents and Google Veo 3.
 
 **Pipeline:**
-1. **Research Agent** → Topic/idea → Scene descriptions (narrative, visuals, timing)
+1. **Script Creation** → User creates `script.yaml` with scenes, prompts, and timing
 2. **Music Selector** → Pick appropriate background track
-3. **Script Formatter** → Convert scenes into Veo-compatible prompts
-4. **Veo Generation** → Generate video clips via Google Veo 3 API
-5. **Claude Code Assembly** → Interactively generate/tweak MoviePy scripts → Final video
+3. **Veo Generation** → Generate video clips via Google Veo 3 API
+4. **Claude Code Assembly** → Interactively generate/tweak MoviePy scripts → Final video
 
 ## Features
-1.  **Agent-Driven Workflow:** Automated scene research, music selection via CLI
+1.  **Script-Driven Workflow:** Start with a `script.yaml` defining scenes and prompts
 2.  **Claude Code Assembly:** Interactive MoviePy script generation with visual feedback loop
 3.  **Multi-Format:** Support for Vertical (9:16) and Horizontal (16:9)
 4.  **Manifest-Driven:** Uses `script.yaml` as source of truth for scenes, timing, and prompts
@@ -25,8 +24,7 @@ A CLI-based tool to create video content from idea to final render using AI agen
 ```bash
 # All commands default to script.yaml and can be overridden with --script
 
-# 1. Generate scene descriptions from an idea
-video-maker research "Man's Purpose - spiritual journey, 90s" --duration 90
+# 1. Create script.yaml manually with scene definitions (see example below)
 
 # 2. Check project status
 video-maker status
@@ -62,8 +60,7 @@ video-maker veo --script custom.yaml --output clips/
 │   ├── cli.py       # CLI entry point (Typer)
 │   ├── config.py    # Environment configuration
 │   ├── agents/
-│   │   ├── base.py      # Abstract base agent
-│   │   └── research.py  # Scene generation agent
+│   │   └── base.py      # Abstract base agent
 │   ├── models/
 │   │   ├── scene.py     # Scene data model
 │   │   ├── manifest.py  # Project manifest
@@ -104,15 +101,6 @@ scenes:
 
 ## Implementation Notes
 
-### Research Agent
-- Uses Claude Sonnet by default
-- Optional web search integration
-- Outputs structured JSON scene descriptions with:
-  - Visual prompts for Veo
-  - Text overlays
-  - Timing/duration
-  - Narrative flow
-
 ### Music Selection
 - **Phase 1:** Manual selection (user provides path)
 - **Phase 2:** AI-generated (Suno/Udio integration)
@@ -149,7 +137,6 @@ Rather than a fixed automated pipeline, assembly is handled interactively by Cla
 
 ## Roadmap
 - [x] Basic CLI scaffold (Typer)
-- [x] Research agent (Claude-powered scene generation)
 - [x] Veo API client (working with Vertex AI)
 - [x] Imagen integration (character reference images)
 - [x] Assembly approach defined (Claude Code-driven, not fixed pipeline)
