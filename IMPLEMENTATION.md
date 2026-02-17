@@ -19,14 +19,14 @@ music-video-gen/
 ├── output/                     # Final rendered videos
 │
 ├── templates/
-│   ├── overlays/               # Text overlay style templates (JSON)
-│   └── prompts/                # Agent prompt templates
+│   └── overlays/               # Text overlay style templates (JSON)
 │
 ├── src/
 │   └── mvg/                    # Main package
 │       ├── __init__.py
 │       ├── cli.py              # CLI entry point (Typer)
 │       ├── config.py           # Configuration management
+│       ├── codegen.py          # MoviePy script generation
 │       │
 │       ├── models/             # Data models
 │       │   ├── __init__.py
@@ -36,34 +36,21 @@ music-video-gen/
 │       │
 │       ├── agents/             # AI agents
 │       │   ├── __init__.py
-│       │   ├── base.py         # Base agent class
-│       │   └── assembly.py     # Assembly planning agent (planned)
+│       │   └── base.py         # Base agent class
 │       │
 │       ├── services/           # External service integrations
 │       │   ├── __init__.py
 │       │   ├── veo.py          # Google Veo 3 client
-│       │   ├── whisper.py      # OpenAI Whisper transcription
+│       │   ├── imagen.py       # Google Imagen client
 │       │   └── anthropic.py    # Claude API wrapper
 │       │
-│       ├── editor/             # Video editing
-│       │   ├── __init__.py
-│       │   ├── compositor.py   # Main video assembly
-│       │   ├── overlays.py     # Text overlay rendering
-│       │   ├── audio.py        # Audio sync/mixing
-│       │   └── effects.py      # Transitions, filters
-│       │
-│       └── utils/
+│       └── editor/             # Video editing
 │           ├── __init__.py
-│           ├── paths.py        # Path resolution
-│           └── formats.py      # Video format constants
+│           ├── compositor.py   # Main video assembly
+│           ├── overlays.py     # Text overlay rendering
+│           └── audio.py        # Audio sync/mixing
 │
 └── tests/
-    ├── conftest.py
-    ├── test_cli.py
-    ├── test_models/
-    ├── test_agents/
-    ├── test_services/
-    └── test_editor/
 ```
 
 ---
@@ -79,7 +66,6 @@ music-video-gen/
 | `imagen <prompt>` | Generate reference image |
 | `veo` | Generate clips via Veo 3 |
 | `generate-script` | Generate MoviePy assembly script with text overlays |
-| `transcribe <audio>` | Generate lyrics/subtitles (planned) |
 
 ### 2.2 Models (`models/`)
 **Responsibility:** Data structures, validation, serialization
@@ -95,7 +81,7 @@ music-video-gen/
 
 | Agent | Input | Output |
 |-------|-------|--------|
-| `AssemblyAgent` | Manifest, clips | Assembly instructions (planned) |
+| `base.py` | — | Abstract base agent class |
 
 ### 2.4 Services (`services/`)
 **Responsibility:** External API integrations
@@ -103,90 +89,50 @@ music-video-gen/
 | Service | API | Purpose |
 |---------|-----|---------|
 | `VeoClient` | Google Vertex AI (Veo 3) | Generate video clips |
-| `WhisperClient` | OpenAI Whisper | Transcribe audio to subtitles |
-| `ClaudeClient` | Anthropic API | Power research/assembly agents |
+| `ImagenClient` | Google Vertex AI (Imagen) | Generate reference images |
+| `ClaudeClient` | Anthropic API | Claude API wrapper |
 
 ### 2.5 Editor (`editor/`)
 **Responsibility:** Video processing and assembly
 
-| Module | Functions |
-|--------|-----------|
-| `compositor.py` | `stitch_clips()`, `add_transitions()`, `export()` |
-| `overlays.py` | `render_text()`, `apply_style()`, `position_overlay()` |
-| `audio.py` | `sync_audio()`, `loop_audio()`, `fade_audio()` |
-| `effects.py` | `crossfade()`, `resize()`, `crop_to_aspect()` |
+| Module | Purpose |
+|--------|---------|
+| `compositor.py` | Main video assembly |
+| `overlays.py` | Text overlay rendering with presets |
+| `audio.py` | Audio sync/mixing |
 
 ---
 
 ## 3. Implementation Phases
 
-### Phase 1: Foundation (Core Infrastructure)
-**Dependencies:** None
+### Phase 1: Foundation (Core Infrastructure) ✅
 **Deliverables:**
-- [ ] Project scaffolding (`pyproject.toml`, package structure)
-- [ ] Configuration management (`config.py` with env vars)
-- [ ] Data models (`Scene`, `Manifest`, `Project`)
-- [ ] YAML manifest parser
-- [ ] Basic CLI skeleton with Typer
+- [x] Project scaffolding (`pyproject.toml`, package structure)
+- [x] Configuration management (`config.py` with env vars)
+- [x] Data models (`Scene`, `Manifest`, `Project`)
+- [x] YAML manifest parser
+- [x] Basic CLI skeleton with Typer
 
-**Key Files:**
-```
-src/mvg/__init__.py
-src/mvg/cli.py
-src/mvg/config.py
-src/mvg/models/scene.py
-src/mvg/models/manifest.py
-```
-
-### Phase 2: Video Assembly Pipeline
-**Dependencies:** Phase 1
+### Phase 2: Video Assembly Pipeline ✅
 **Deliverables:**
-- [ ] MoviePy compositor (stitch existing clips)
-- [ ] Text overlay system (basic styles)
-- [ ] Audio sync (loop/trim to match video)
-- [ ] `assemble` CLI command
+- [x] MoviePy compositor (stitch existing clips)
+- [x] Text overlay system with presets (title, text, subtitle)
+- [x] Audio sync (loop/trim to match video)
+- [x] `generate-script` CLI command (generates standalone MoviePy scripts)
 
-**Key Files:**
-```
-src/mvg/editor/compositor.py
-src/mvg/editor/overlays.py
-src/mvg/editor/audio.py
-```
-
-### Phase 3: Veo 3 Integration
-**Dependencies:** Phase 1
+### Phase 3: Veo 3 Integration ✅
 **Deliverables:**
-- [ ] Vertex AI / Veo 3 client
-- [ ] Async clip generation with polling
-- [ ] Progress tracking and retry logic
-- [ ] `veo` CLI command
+- [x] Vertex AI / Veo 3 client
+- [x] Concurrent clip generation with thread pool
+- [x] `veo` CLI command with dry-run, skip-existing, reference image support
+- [x] Imagen client for character reference images
 
-**Key Files:**
-```
-src/mvg/services/veo.py
-```
-
-### Phase 4: Lyrics/Subtitles
-**Dependencies:** Phase 2
+### Phase 4: Lyrics/Subtitles (Planned)
 **Deliverables:**
 - [ ] Whisper transcription client
 - [ ] SRT/VTT generation
 - [ ] Subtitle burn-in
 - [ ] `transcribe` CLI command
-
-**Key Files:**
-```
-src/mvg/services/whisper.py
-src/mvg/editor/subtitles.py
-```
-
-### Phase 5: Full Pipeline & Polish
-**Dependencies:** All previous phases
-**Deliverables:**
-- [ ] `create` command (end-to-end)
-- [ ] Project state persistence
-- [ ] Error recovery / resume
-- [ ] Progress display (rich console)
 
 ---
 
@@ -244,34 +190,6 @@ response = client.messages.create(
 ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-### 4.3 OpenAI Whisper
-
-**Option A: API**
-```python
-from openai import OpenAI
-
-client = OpenAI()
-transcription = client.audio.transcriptions.create(
-    model="whisper-1",
-    file=audio_file,
-    response_format="srt"
-)
-```
-
-**Option B: Local (faster-whisper)**
-```python
-from faster_whisper import WhisperModel
-
-model = WhisperModel("large-v3")
-segments, info = model.transcribe(audio_path)
-```
-
-**Environment variables:**
-```
-OPENAI_API_KEY=sk-...
-WHISPER_MODEL=large-v3  # For local
-```
-
 ---
 
 ## 5. CLI Command Structure
@@ -292,18 +210,15 @@ video-maker
 │   ├── --output PATH                # Output directory for clips
 │   ├── --parallel INT               # Concurrent generations (default: 3)
 │   ├── --reference PATH             # Reference image for consistency
-│   └── --skip-existing              # Don't regenerate existing clips
+│   ├── --skip-existing/--regenerate # Skip existing clips (default: skip)
+│   ├── --dry-run                    # Show plan without calling API
+│   └── --limit INT                  # Limit scenes to generate
 │
-├── generate-script                  # Generate MoviePy assembly script
-│   ├── --script PATH                # Path to script.yaml
-│   ├── --clips PATH                 # Clips directory
-│   ├── --output PATH                # Output Python script path
-│   └── --output-video PATH          # Output video path for generated script
-│
-└── transcribe <audio>               # Generate subtitles (planned)
-    ├── --output PATH                # Output SRT/VTT file
-    ├── --format [srt|vtt]           # Subtitle format
-    └── --language TEXT              # Force language
+└── generate-script                  # Generate MoviePy assembly script
+    ├── --script PATH                # Path to script.yaml
+    ├── --clips PATH                 # Clips directory
+    ├── --output PATH                # Output Python script path
+    └── --output-video PATH          # Output video path for generated script
 ```
 
 **Entry point configuration (pyproject.toml):**
@@ -314,105 +229,7 @@ video-maker = "mvg.cli:app"
 
 ---
 
-## 6. Testing Approach
-
-### 6.1 Unit Tests
-**Coverage:** Models, utils, isolated functions
-
-```python
-# tests/test_models/test_scene.py
-def test_scene_from_yaml():
-    data = {"id": "s1", "prompt": "test", "duration": 5.0}
-    scene = Scene.from_dict(data)
-    assert scene.id == "s1"
-    assert scene.duration == 5.0
-```
-
-### 6.2 Integration Tests
-**Coverage:** Service clients with mocked APIs
-
-```python
-# tests/test_services/test_veo.py
-@pytest.fixture
-def mock_vertex():
-    with patch("google.cloud.aiplatform.VideoGenerationClient") as m:
-        yield m
-
-def test_generate_clip(mock_vertex):
-    client = VeoClient()
-    result = client.generate("prompt", duration=5)
-    assert result.path.exists()
-```
-
-### 6.3 Editor Tests
-**Coverage:** Video processing with small test clips
-
-```python
-# tests/test_editor/test_compositor.py
-def test_stitch_clips(tmp_path, sample_clips):
-    output = tmp_path / "output.mp4"
-    stitch_clips(sample_clips, output)
-    assert output.exists()
-    # Verify duration matches sum of inputs
-```
-
-### 6.4 End-to-End Tests
-**Coverage:** Full pipeline with fixtures
-
-```python
-# tests/test_e2e.py
-@pytest.mark.slow
-def test_full_pipeline(tmp_project):
-    result = runner.invoke(app, ["create", "test idea", "--duration", "10"])
-    assert result.exit_code == 0
-    assert (tmp_project / "output" / "final.mp4").exists()
-```
-
-### 6.5 Test Fixtures
-- Small (1-2 second) test video clips
-- Sample audio files
-- Mock API responses (recorded/fixture-based)
-
-**Test commands:**
-```bash
-# Unit tests only
-pytest tests/ -m "not slow"
-
-# Full suite
-pytest tests/
-
-# With coverage
-pytest tests/ --cov=mvg --cov-report=html
-```
-
----
-
-## 7. Component Complexity Estimates
-
-| Component | Complexity | Notes |
-|-----------|------------|-------|
-| **CLI scaffold** | Low | Typer boilerplate, straightforward |
-| **Data models** | Low | Pydantic dataclasses, YAML parsing |
-| **Config management** | Low | Env vars, simple validation |
-| **Claude client** | Low | SDK wrapper, structured output parsing |
-| **Veo client** | Medium-High | Async operations, GCS, polling, error handling |
-| **MoviePy compositor** | Medium | Clip concatenation, resizing, encoding |
-| **Text overlays** | Medium | Font handling, positioning, styling |
-| **Audio sync** | Medium | Duration matching, looping, fades |
-| **Whisper integration** | Low-Medium | API call or local model setup |
-| **Subtitle burn-in** | Medium | Timing sync, styling |
-| **Full pipeline orchestration** | High | State management, error recovery, coordination |
-| **Project state persistence** | Medium | Save/resume, partial completion tracking |
-
-### Complexity Legend
-- **Low:** < 100 LOC, straightforward implementation
-- **Medium:** 100-300 LOC, requires careful design
-- **Medium-High:** 300-500 LOC, multiple edge cases
-- **High:** 500+ LOC, complex state/coordination
-
----
-
-## 8. Dependencies
+## 6. Dependencies
 
 ### Core
 ```
@@ -425,9 +242,7 @@ python-dotenv>=1.0    # Environment management
 ### AI/ML
 ```
 anthropic>=0.25       # Claude API
-google-cloud-aiplatform>=1.45  # Veo 3
-openai>=1.0           # Whisper API (optional)
-faster-whisper>=1.0   # Local Whisper (optional)
+google-cloud-aiplatform>=1.45  # Veo 3 + Imagen
 ```
 
 ### Video/Audio
@@ -447,37 +262,16 @@ mypy>=1.8             # Type checking
 
 ---
 
-## 9. Risk Areas & Mitigations
+## 7. Getting Started
 
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| Veo 3 API access/quotas | High | Early credential setup, fallback to manual clips |
-| Long generation times | Medium | Async/parallel generation, progress display |
-| MoviePy encoding issues | Medium | Test multiple codecs, provide format options |
-| Large file handling | Medium | Streaming, temp file cleanup, progress bars |
-| API cost control | Medium | Dry-run mode, confirmation prompts |
+```bash
+# Install in dev mode
+pip install -e .
 
----
+# Copy env config
+cp .env.example .env
+# Fill in Google Cloud credentials
 
-## 10. Getting Started (First Steps)
-
-1. **Initialize project:**
-   ```bash
-   mkdir -p src/mvg assets/{clips,music,fonts} output templates/{overlays,prompts} tests
-   ```
-
-2. **Create pyproject.toml** with dependencies and entry point
-
-3. **Implement Phase 1** (foundation) in order:
-   - `config.py` - env var loading
-   - `models/scene.py` - Scene dataclass
-   - `models/manifest.py` - Manifest with YAML loading
-   - `cli.py` - Basic Typer app with `status` command
-
-4. **Verify with:**
-   ```bash
-   pip install -e .
-   video-maker status
-   ```
-
-5. **Continue with Phase 2** (assembly) as the core value proposition
+# Verify installation
+video-maker status
+```

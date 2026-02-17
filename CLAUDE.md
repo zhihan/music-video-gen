@@ -68,8 +68,13 @@ python scripts/assembly.py
 │   │   ├── scene.py     # Scene data model
 │   │   ├── manifest.py  # Project manifest
 │   │   └── project.py   # Project state
+│   ├── editor/
+│   │   ├── compositor.py # Video assembly
+│   │   ├── overlays.py   # Text overlay rendering
+│   │   └── audio.py      # Audio sync/mixing
 │   └── services/
 │       ├── anthropic.py # Claude API client
+│       ├── imagen.py    # Google Imagen client
 │       └── veo.py       # Google Veo 3 client
 ├── script.yaml      # Default manifest file
 ├── pyproject.toml
@@ -108,7 +113,7 @@ scenes:
 - Google Veo 3 via Vertex AI
 - Scene prompts → video clips
 - Handles aspect ratio, duration, quality settings
-- **TODO:** Confirm API access/credentials
+- Supports character reference images via Imagen
 
 ### Assembly (Claude Code-Driven)
 Rather than a fixed automated pipeline, assembly is handled interactively by Claude Code:
@@ -137,9 +142,9 @@ Rather than a fixed automated pipeline, assembly is handled interactively by Cla
 - [x] Basic CLI scaffold (Typer)
 - [x] Veo API client (working with Vertex AI)
 - [x] Imagen integration (character reference images)
-- [x] Assembly approach defined (Claude Code-driven, not fixed pipeline)
+- [x] Assembly script generation (`generate-script` command)
+- [x] Text overlay presets (title, text, subtitle)
 - [ ] Lyrics/Whisper transcription
-- [ ] End-to-end test with "Man's Purpose" project
 
 ## MoviePy Style Guide
 

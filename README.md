@@ -24,12 +24,10 @@ cp .env.example .env
 Required:
 - `GOOGLE_APPLICATION_CREDENTIALS`: For Veo 3 video generation
 - `GOOGLE_CLOUD_PROJECT`: Your GCP project ID
+- `VEO_OUTPUT_BUCKET`: GCS bucket for generated clips
 
 Optional:
-- `ANTHROPIC_API_KEY`: For Claude-based agents (future)
-
-- `OPENAI_API_KEY`: For Whisper transcription (planned)
-- `VEO_OUTPUT_BUCKET`: GCS bucket for generated clips
+- `ANTHROPIC_API_KEY`: For Claude API integration
 
 ## Usage
 
@@ -47,20 +45,15 @@ video-maker --version
 
 ## Development Status
 
-**Phase 1: Foundation** ✅ (Current PR)
-- Project scaffolding
-- Configuration management
-- Data models (Scene, Manifest, Project)
-- Basic CLI with status command
-
 **Completed:**
-- Veo 3 integration
-- Imagen reference images
-- Video assembly pipeline
+- Project scaffolding, configuration, data models
+- CLI with `status`, `imagen`, `veo`, `generate-script` commands
+- Veo 3 integration (clip generation from prompts)
+- Imagen integration (character reference images)
+- MoviePy assembly script generation with text overlays
 
-**Coming Soon:**
-- Lyrics/subtitles
-- Full pipeline orchestration
+**Planned:**
+- Lyrics/subtitles (Whisper transcription)
 
 ## Architecture
 
