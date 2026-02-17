@@ -16,6 +16,7 @@ To refine with Claude:
 
 from pathlib import Path
 from moviepy import (
+    AudioFileClip,
     VideoFileClip,
     TextClip,
     CompositeVideoClip,
@@ -28,22 +29,28 @@ from moviepy import (
 
 CLIPS_DIR = Path("clips")
 OUTPUT_PATH = Path("output/final.mp4")
+AUDIO_FILE = Path("song.mp3")
 VIDEO_WIDTH = 1080
 VIDEO_HEIGHT = 1920
 
+# Title configuration
+TITLE_TEXT = "Thousands of Conversation"
+TITLE_DURATION = 4.0  # How long the title shows
+TITLE_FONT_SIZE = 72
+LYRICS_DELAY = 3.0  # Delay first lyrics to make room for title
+
 # Text styling constants (adjust these to change all text at once)
 TEXT_WIDTH = 918  # 85% of video width
-FONT_SIZE = 48
+FONT_SIZE = 64  # Increased from 48
 FONT = "Arial"
 TEXT_COLOR = "white"
 TEXT_BG = "#000000AA"  # Semi-transparent black background
-TEXT_MARGIN = 80  # Margin from bottom edge
 
 # Height constants based on text length (adjust if text is clipped)
-TEXT_1LINE_H = 80
-TEXT_2LINE_H = 120
-TEXT_3LINE_H = 180
-TEXT_4LINE_H = 240
+TEXT_1LINE_H = 100
+TEXT_2LINE_H = 160
+TEXT_3LINE_H = 240
+TEXT_4LINE_H = 320
 
 # =============================================================================
 # SCENE DATA (from script.yaml)
@@ -85,6 +92,7 @@ def create_text_overlay(
     text: str,
     duration: float,
     video_size: tuple[int, int],
+    start_time: float = 0,
 ) -> TextClip:
     """Create a text overlay clip with semi-transparent background."""
     width, height = video_size
@@ -102,16 +110,45 @@ def create_text_overlay(
         vertical_align="center",
     )
     text_clip = text_clip.with_duration(duration)
+    if start_time > 0:
+        text_clip = text_clip.with_start(start_time)
 
-    # Position at bottom with margin
-    text_clip = text_clip.with_position(
-        ("center", height - text_height - TEXT_MARGIN)
-    )
+    # Position at center of screen (slightly above center for better visual balance)
+    y_position = (height - text_height) // 2 - 100
+    text_clip = text_clip.with_position(("center", y_position))
 
     return text_clip
 
 
-def load_and_process_clip(scene_id: str, scene_data: dict) -> VideoFileClip:
+def create_title_overlay(duration: float, video_size: tuple[int, int]) -> TextClip:
+    """Create the title overlay clip."""
+    width, height = video_size
+
+    title_clip = TextClip(
+        text=TITLE_TEXT,
+        font=FONT,
+        font_size=TITLE_FONT_SIZE,
+        color=TEXT_COLOR,
+        bg_color=TEXT_BG,
+        size=(TEXT_WIDTH, 120),
+        method="caption",
+        text_align="center",
+        vertical_align="center",
+    )
+    title_clip = title_clip.with_duration(duration)
+
+    # Position title at center
+    y_position = (height - 120) // 2 - 100
+    title_clip = title_clip.with_position(("center", y_position))
+
+    return title_clip
+
+
+def load_and_process_clip(
+    scene_id: str,
+    scene_data: dict,
+    is_first_clip: bool = False,
+) -> VideoFileClip:
     """Load a clip and add text overlay if specified."""
     clip_path = CLIPS_DIR / f"{scene_id}.mp4"
 
@@ -130,15 +167,37 @@ def load_and_process_clip(scene_id: str, scene_data: dict) -> VideoFileClip:
             x1 = x_center - VIDEO_WIDTH // 2
             clip = clip.cropped(x1=x1, x2=x1 + VIDEO_WIDTH)
 
+    layers = [clip]
+
+    # Add title overlay on first clip
+    if is_first_clip:
+        title_clip = create_title_overlay(
+            duration=TITLE_DURATION,
+            video_size=(VIDEO_WIDTH, VIDEO_HEIGHT),
+        )
+        layers.append(title_clip)
+
     # Add text overlay if present
     overlay_text = scene_data.get("overlay_text")
     if overlay_text:
+        if is_first_clip:
+            # Delay lyrics on first clip to make room for title
+            lyrics_start = LYRICS_DELAY
+            lyrics_duration = clip.duration - LYRICS_DELAY
+        else:
+            lyrics_start = 0
+            lyrics_duration = clip.duration
+
         text_clip = create_text_overlay(
             text=overlay_text,
-            duration=clip.duration,
+            duration=lyrics_duration,
             video_size=(VIDEO_WIDTH, VIDEO_HEIGHT),
+            start_time=lyrics_start,
         )
-        clip = CompositeVideoClip([clip, text_clip])
+        layers.append(text_clip)
+
+    if len(layers) > 1:
+        clip = CompositeVideoClip(layers)
 
     return clip
 
@@ -151,14 +210,19 @@ def main():
     """Assemble all clips with text overlays."""
     print(f"Assembling video: The Unknown Way")
     print(f"Output: {OUTPUT_PATH}")
+    print(f"Audio: {AUDIO_FILE}")
     print()
 
     clips = []
-    for scene_id, scene_data in SCENES.items():
+    scene_items = list(SCENES.items())
+    for i, (scene_id, scene_data) in enumerate(scene_items):
         print(f"  Processing {scene_id}...")
         try:
-            clip = load_and_process_clip(scene_id, scene_data)
+            is_first = (i == 0)
+            clip = load_and_process_clip(scene_id, scene_data, is_first_clip=is_first)
             clips.append(clip)
+            if is_first:
+                print(f"    Title: {TITLE_TEXT}")
             overlay = scene_data.get("overlay_text", "")
             if overlay:
                 preview = overlay[:40] + "..." if len(overlay) > 40 else overlay
@@ -176,6 +240,17 @@ def main():
 
     # Concatenate all clips
     final = concatenate_videoclips(clips, method="compose")
+
+    # Load and add audio
+    if AUDIO_FILE.exists():
+        print(f"Adding audio: {AUDIO_FILE}")
+        audio = AudioFileClip(str(AUDIO_FILE))
+        # Trim or loop audio to match video duration
+        if audio.duration > final.duration:
+            audio = audio.subclipped(0, final.duration)
+        final = final.with_audio(audio)
+    else:
+        print(f"WARNING: Audio file not found: {AUDIO_FILE}")
 
     # Ensure output directory exists
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
