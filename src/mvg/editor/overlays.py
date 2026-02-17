@@ -1,9 +1,13 @@
 """Text overlay rendering for video clips."""
 
+import textwrap
 from dataclasses import dataclass, field
 from typing import Optional, Tuple
 
 from moviepy import TextClip, VideoClip, CompositeVideoClip
+
+# Default text width for a 1080px-wide (9:16) canvas
+TEXT_WIDTH = 680
 
 
 @dataclass
@@ -11,39 +15,71 @@ class TextStyle:
     """Configuration for text overlay styling."""
 
     font: str = "Arial"
-    font_size: int = 48
+    font_size: int = 50
     color: str = "white"
-    stroke_color: Optional[str] = "black"
-    stroke_width: int = 2
-    background_color: Optional[str] = None
+    stroke_color: Optional[str] = None
+    stroke_width: int = 0
+    background_color: Optional[str] = "#000000AA"
     background_padding: Tuple[int, int] = field(default_factory=lambda: (10, 5))
+    chars_per_line: int = 24
+    max_lines: int = 5
+    text_width: int = TEXT_WIDTH
 
 
-# Preset styles
+# Preset styles — based on sampler results (9:16 canvas, TEXT_WIDTH=680)
 STYLES = {
-    "default": TextStyle(),
-    "title": TextStyle(font_size=72, stroke_width=3),
-    "subtitle": TextStyle(font_size=36, stroke_width=1),
-    "caption": TextStyle(
-        font_size=32,
-        background_color="rgba(0,0,0,0.7)",
-        stroke_color=None,
-        stroke_width=0
+    "title": TextStyle(
+        font_size=70,
+        chars_per_line=17,
+        max_lines=2,
     ),
-    "minimal": TextStyle(
-        font_size=42,
-        stroke_color=None,
-        stroke_width=0
+    "text": TextStyle(
+        font_size=50,
+        chars_per_line=24,
+        max_lines=5,
+    ),
+    "subtitle": TextStyle(
+        font_size=40,
+        chars_per_line=30,
+        max_lines=3,
     ),
 }
+# Keep "default" as an alias for "text"
+STYLES["default"] = STYLES["text"]
+
+
+def wrap_text(text: str, chars_per_line: int, max_lines: int) -> str:
+    """Word-wrap text to fit within chars_per_line, capped at max_lines.
+
+    Breaks at word boundaries using textwrap. If the text exceeds max_lines,
+    it is truncated with '...' on the last visible line.
+    """
+    lines = textwrap.wrap(text, width=chars_per_line)
+    if len(lines) > max_lines:
+        lines = lines[:max_lines]
+        # Truncate last line to fit ellipsis
+        last = lines[-1]
+        if len(last) > chars_per_line - 3:
+            last = last[: chars_per_line - 3]
+        lines[-1] = last.rstrip() + "..."
+    return "\n".join(lines)
+
+
+def calc_text_height(line_count: int, font_size: int) -> int:
+    """Calculate text box height based on line count and font size.
+
+    Uses line_height=1.4x and padding=0.3x (tightened from 0.6x per tester feedback).
+    """
+    line_height = int(font_size * 1.4)
+    return line_height * line_count + int(font_size * 0.3)
 
 
 def render_text(
     text: str,
     style: Optional[TextStyle] = None,
-    duration: Optional[float] = None
+    duration: Optional[float] = None,
 ) -> TextClip:
-    """Create a text clip with the given style.
+    """Create a text clip with word wrapping and the given style.
 
     Args:
         text: Text content to render.
@@ -56,12 +92,21 @@ def render_text(
     if style is None:
         style = STYLES["default"]
 
+    # Word-wrap at word boundaries
+    wrapped = wrap_text(text, style.chars_per_line, style.max_lines)
+    line_count = wrapped.count("\n") + 1
+    text_height = calc_text_height(line_count, style.font_size)
+
     # Build TextClip parameters
-    params = {
-        "text": text,
+    params: dict = {
+        "text": wrapped,
         "font": style.font,
         "font_size": style.font_size,
         "color": style.color,
+        "size": (style.text_width, text_height),
+        "method": "caption",
+        "text_align": "center",
+        "vertical_align": "top",
     }
 
     if style.stroke_color and style.stroke_width > 0:

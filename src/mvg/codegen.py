@@ -24,8 +24,11 @@ def generate_assembly_script(
     scene_defs = []
     for scene in manifest.scenes:
         overlay_text = repr(scene.overlay_text) if scene.overlay_text else "None"
+        overlay_style = repr(scene.overlay_style) if scene.overlay_style else '"text"'
         scene_defs.append(
-            f'    "{scene.id}": {{"duration": {scene.duration}, "overlay_text": {overlay_text}}},'
+            f'    "{scene.id}": {{"duration": {scene.duration},'
+            f' "overlay_text": {overlay_text},'
+            f' "overlay_style": {overlay_style}}},'
         )
     scenes_dict = "\n".join(scene_defs)
 
@@ -51,6 +54,7 @@ To refine with Claude:
     "Add a fade-in effect to the text"
 """
 
+import textwrap
 from pathlib import Path
 from moviepy import (
     VideoFileClip,
@@ -68,19 +72,19 @@ OUTPUT_PATH = Path("{output_video}")
 VIDEO_WIDTH = {width}
 VIDEO_HEIGHT = {height}
 
-# Text styling constants (adjust these to change all text at once)
-TEXT_WIDTH = {int(width * 0.85)}  # 85% of video width
-FONT_SIZE = 48
+# Common styling
+TEXT_WIDTH = 680
 FONT = "Arial"
 TEXT_COLOR = "white"
 TEXT_BG = "#000000AA"  # Semi-transparent black background
-TEXT_MARGIN = 80  # Margin from bottom edge
 
-# Height constants based on text length (adjust if text is clipped)
-TEXT_1LINE_H = 80
-TEXT_2LINE_H = 120
-TEXT_3LINE_H = 180
-TEXT_4LINE_H = 240
+# Text presets: font_size, chars_per_line, max_lines
+# Based on sampler testing with TEXT_WIDTH=680 on 1080x1920 canvas
+PRESETS = {{
+    "title": {{"font_size": 70, "chars_per_line": 17, "max_lines": 2}},
+    "text":  {{"font_size": 50, "chars_per_line": 24, "max_lines": 5}},
+    "subtitle": {{"font_size": 40, "chars_per_line": 30, "max_lines": 3}},
+}}
 
 # =============================================================================
 # SCENE DATA (from script.yaml)
@@ -94,49 +98,55 @@ SCENES = {{
 # HELPER FUNCTIONS
 # =============================================================================
 
-def estimate_text_height(text: str, width: int, font_size: int) -> int:
-    """Estimate text height based on character count and width."""
-    if not text:
-        return TEXT_1LINE_H
-    # Rough estimate: ~15 chars per line at standard font size
-    chars_per_line = width // (font_size * 0.6)
-    lines = max(1, len(text) // int(chars_per_line) + 1)
-    if lines == 1:
-        return TEXT_1LINE_H
-    elif lines == 2:
-        return TEXT_2LINE_H
-    elif lines == 3:
-        return TEXT_3LINE_H
-    else:
-        return TEXT_4LINE_H
+def wrap_text(text: str, chars_per_line: int, max_lines: int) -> str:
+    """Word-wrap text at word boundaries, capped at max_lines."""
+    lines = textwrap.wrap(text, width=chars_per_line)
+    if len(lines) > max_lines:
+        lines = lines[:max_lines]
+        last = lines[-1]
+        if len(last) > chars_per_line - 3:
+            last = last[:chars_per_line - 3]
+        lines[-1] = last.rstrip() + "..."
+    return "\\n".join(lines)
+
+
+def calc_text_height(line_count: int, font_size: int) -> int:
+    """Calculate text box height from line count and font size."""
+    line_height = int(font_size * 1.4)
+    return line_height * line_count + int(font_size * 0.3)
 
 
 def create_text_overlay(
     text: str,
     duration: float,
     video_size: tuple[int, int],
+    preset: str = "text",
 ) -> TextClip:
-    """Create a text overlay clip with semi-transparent background."""
+    """Create a text overlay clip with word wrapping and semi-transparent background."""
     width, height = video_size
-    text_height = estimate_text_height(text, TEXT_WIDTH, FONT_SIZE)
+    cfg = PRESETS.get(preset, PRESETS["text"])
+    font_size = cfg["font_size"]
+
+    wrapped = wrap_text(text, cfg["chars_per_line"], cfg["max_lines"])
+    line_count = wrapped.count("\\n") + 1
+    text_height = calc_text_height(line_count, font_size)
 
     text_clip = TextClip(
-        text=text,
+        text=wrapped,
         font=FONT,
-        font_size=FONT_SIZE,
+        font_size=font_size,
         color=TEXT_COLOR,
         bg_color=TEXT_BG,
         size=(TEXT_WIDTH, text_height),
-        method="caption",  # Enables word wrapping
+        method="caption",
         text_align="center",
-        vertical_align="center",
+        vertical_align="top",
     )
     text_clip = text_clip.with_duration(duration)
 
-    # Position at bottom with margin
-    text_clip = text_clip.with_position(
-        ("center", height - text_height - TEXT_MARGIN)
-    )
+    # Position at 75% down the screen
+    y_position = int(height * 0.75) - text_height // 2
+    text_clip = text_clip.with_position(("center", y_position))
 
     return text_clip
 
@@ -163,10 +173,12 @@ def load_and_process_clip(scene_id: str, scene_data: dict) -> VideoFileClip:
     # Add text overlay if present
     overlay_text = scene_data.get("overlay_text")
     if overlay_text:
+        preset = scene_data.get("overlay_style", "text")
         text_clip = create_text_overlay(
             text=overlay_text,
             duration=clip.duration,
             video_size=(VIDEO_WIDTH, VIDEO_HEIGHT),
+            preset=preset,
         )
         clip = CompositeVideoClip([clip, text_clip])
 
