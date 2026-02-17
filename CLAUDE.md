@@ -156,3 +156,32 @@ Rather than a fixed automated pipeline, assembly is handled interactively by Cla
 - [ ] Lyrics/Whisper transcription
 - [ ] Music selection agent
 - [ ] End-to-end test with "Man's Purpose" project
+
+## MoviePy Style Guide
+
+### Text Overlays
+- No outlines/strokes, use semi-transparent background (`bg_color`) for readability
+- When using `method='caption'` with TextClip:
+  - Always specify explicit height in `size=(width, height)` - auto height `(width, None)` clips text
+  - Use `vertical_align='top'` to position text correctly within the bounding box
+- When adding audio to MP4: must specify `audio_codec="aac"` in `write_videofile()`
+
+### Text Constants
+
+Always define constants at the top of video scripts for consistent text sizing:
+
+```python
+TEXT_WIDTH = 680
+HEADER_FONT_SIZE = 70
+BODY_FONT_SIZE = 60
+TEXT_BG = '#000000AA'
+
+# Height constants based on line count
+HEADER_SHORT_H = 100   # Short single-line headers (e.g., "CHRIST CAME.")
+HEADER_LONG_H = 160    # Long headers that may wrap (e.g., "WHY DID GOD CREATE MAN?")
+BODY_1LINE_H = 120     # Single line body text
+BODY_2LINE_H = 160     # Two-line body text
+BODY_3LINE_H = 220     # Three-line body text
+```
+
+Use these constants in all TextClip definitions to maintain consistency and make global adjustments easier.
