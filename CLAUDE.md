@@ -5,9 +5,8 @@ A CLI-based tool to create video content from idea to final render using AI agen
 
 **Pipeline:**
 1. **Script Creation** → User creates `script.yaml` with scenes, prompts, and timing
-2. **Music Selector** → Pick appropriate background track
-3. **Veo Generation** → Generate video clips via Google Veo 3 API
-4. **Claude Code Assembly** → Interactively generate/tweak MoviePy scripts → Final video
+2. **Veo Generation** → Generate video clips via Google Veo 3 API
+3. **Claude Code Assembly** → Interactively generate/tweak MoviePy scripts → Final video
 
 ## Features
 1.  **Script-Driven Workflow:** Start with a `script.yaml` defining scenes and prompts
@@ -38,12 +37,15 @@ video-maker veo
 video-maker veo --reference assets/character.png   # Use character image for consistency
 video-maker veo --script custom.yaml --output clips/
 
-# 5. Assemble final video (via Claude Code)
-# Instead of a fixed CLI command, use Claude Code interactively:
-#   "Assemble the video from script.yaml with the clips in clips/"
-#   "The text on scene 3 is too small, make it larger"
-#   "Move the overlay up, it's covering the subject's face"
-# Claude generates/refines MoviePy scripts, runs them, and iterates based on output.
+# 5. Generate a MoviePy assembly script with text overlays
+video-maker generate-script
+video-maker generate-script --clips ./clips --output scripts/assembly.py
+
+# 6. Run the generated script, then refine with Claude
+python scripts/assembly.py
+# "The text on scene 3 is too small, make it larger"
+# "Move the overlay up, it's covering the subject's face"
+# Claude refines the MoviePy script and re-runs it.
 ```
 
 ## Directory Structure
@@ -59,6 +61,7 @@ video-maker veo --script custom.yaml --output clips/
 ├── src/mvg/
 │   ├── cli.py       # CLI entry point (Typer)
 │   ├── config.py    # Environment configuration
+│   ├── codegen.py   # MoviePy script generation
 │   ├── agents/
 │   │   └── base.py      # Abstract base agent
 │   ├── models/
@@ -101,11 +104,6 @@ scenes:
 
 ## Implementation Notes
 
-### Music Selection
-- **Phase 1:** Manual selection (user provides path)
-- **Phase 2:** AI-generated (Suno/Udio integration)
-- **Phase 3:** Mood-based library matching
-
 ### Veo Integration
 - Google Veo 3 via Vertex AI
 - Scene prompts → video clips
@@ -141,7 +139,6 @@ Rather than a fixed automated pipeline, assembly is handled interactively by Cla
 - [x] Imagen integration (character reference images)
 - [x] Assembly approach defined (Claude Code-driven, not fixed pipeline)
 - [ ] Lyrics/Whisper transcription
-- [ ] Music selection agent
 - [ ] End-to-end test with "Man's Purpose" project
 
 ## MoviePy Style Guide

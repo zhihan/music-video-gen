@@ -41,6 +41,7 @@ assets/clips/
 *.wav
 *.webm
 *.mov
+veo_response*.json
 
 # Project files (generated manifests)
 script.yaml

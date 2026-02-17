@@ -4,7 +4,6 @@ import logging
 import typer
 from pathlib import Path
 from typing import Optional
-from enum import Enum
 
 from . import __version__
 from .config import config
@@ -93,19 +92,6 @@ def status(
         raise typer.Exit(1)
 
 
-class OutputQuality(str, Enum):
-    """Output quality presets."""
-    DRAFT = "draft"
-    FINAL = "final"
-
-
-class OutputFormat(str, Enum):
-    """Output video formats."""
-    MP4 = "mp4"
-    WEBM = "webm"
-    MOV = "mov"
-
-
 @app.command()
 def imagen(
     prompt: str = typer.Argument(
@@ -173,8 +159,8 @@ def imagen(
     typer.echo(f"   video-maker veo --reference {result.local_path}")
 
 
-@app.command()
-def assemble(
+@app.command(name="generate-script")
+def generate_script(
     script: Path = typer.Option(
         Path("script.yaml"),
         "--script",
@@ -188,51 +174,32 @@ def assemble(
         Path("./clips"),
         "--clips",
         "-c",
-        help="Directory containing video clips",
-        exists=True,
-        file_okay=False,
-        dir_okay=True
-    ),
-    music_file: Optional[Path] = typer.Option(
-        None,
-        "--music",
-        "-m",
-        help="Path to background music file"
+        help="Directory containing video clips"
     ),
     output: Path = typer.Option(
-        Path("output/final.mp4"),
+        Path("./scripts/assembly.py"),
         "--output",
         "-o",
-        help="Output file path"
+        help="Output Python script path"
     ),
-    output_format: OutputFormat = typer.Option(
-        OutputFormat.MP4,
-        "--format",
-        "-f",
-        help="Output video format"
+    output_video: Path = typer.Option(
+        Path("./output/final.mp4"),
+        "--output-video",
+        help="Output video path for the generated script"
     ),
-    quality: OutputQuality = typer.Option(
-        OutputQuality.FINAL,
-        "--quality",
-        "-q",
-        help="Output quality preset"
-    ),
-    transition: float = typer.Option(
-        0.5,
-        "--transition",
-        "-t",
-        help="Transition duration in seconds (0 for no transitions)"
-    ),
-    fade_audio_out: float = typer.Option(
-        2.0,
-        "--fade-audio",
-        help="Audio fade out duration at end (seconds)"
-    )
 ) -> None:
-    """Assemble video clips into final video with music and overlays."""
-    from .editor import stitch_clips, sync_audio, export, add_text_overlay
+    """Generate a MoviePy assembly script with text overlays.
 
-    typer.echo(f"📼 Assembling video from {script}")
+    Creates a standalone Python script that adds text overlays to video clips
+    based on the script.yaml. The generated script can be refined with Claude.
+
+    Example:
+        video-maker generate-script
+        python scripts/assembly.py
+    """
+    from .codegen import generate_assembly_script
+
+    typer.echo(f"📝 Generating assembly script from {script}")
 
     # Load manifest
     try:
@@ -241,103 +208,37 @@ def assemble(
         typer.echo(f"❌ Error loading manifest: {e}")
         raise typer.Exit(1)
 
-    # Collect clip paths in scene order
-    clip_paths: list[Path] = []
-    missing_clips: list[str] = []
+    # Count scenes with overlays
+    overlay_count = sum(1 for s in manifest.scenes if s.overlay_text)
+    typer.echo(f"   Project: {manifest.project_name}")
+    typer.echo(f"   Scenes: {len(manifest.scenes)}")
+    typer.echo(f"   Scenes with text overlays: {overlay_count}")
 
-    for scene in manifest.scenes:
-        if scene.file:
-            # Use explicit file path
-            clip_path = Path(scene.file)
-        else:
-            # Look for clip in clips directory
-            clip_path = clips_dir / f"{scene.id}.mp4"
-
-        if not clip_path.exists():
-            missing_clips.append(f"{scene.id}: {clip_path}")
-        else:
-            clip_paths.append(clip_path)
-
-    if missing_clips:
-        typer.echo("❌ Missing clips:")
-        for clip in missing_clips:
-            typer.echo(f"   - {clip}")
-        raise typer.Exit(1)
-
-    if not clip_paths:
-        typer.echo("❌ No clips found to assemble")
-        raise typer.Exit(1)
-
-    typer.echo(f"   Found {len(clip_paths)} clips")
-
-    # Stitch clips together
+    # Generate the script
     try:
-        typer.echo("   Stitching clips...")
-        video = stitch_clips(clip_paths, transition_duration=transition)
+        script_content = generate_assembly_script(
+            manifest=manifest,
+            clips_dir=clips_dir,
+            output_video=output_video,
+        )
     except Exception as e:
-        typer.echo(f"❌ Error stitching clips: {e}")
+        typer.echo(f"❌ Error generating script: {e}")
         raise typer.Exit(1)
 
-    # Add text overlays if defined in scenes
-    for i, scene in enumerate(manifest.scenes):
-        if scene.overlay_text:
-            style_name = scene.overlay_style or "default"
-            typer.echo(f"   Adding overlay to {scene.id}: '{scene.overlay_text}'")
-            # Note: For complex multi-scene overlays with timing, we'd need
-            # to track cumulative start times. This is a simplified version.
+    # Ensure output directory exists
+    output.parent.mkdir(parents=True, exist_ok=True)
 
-    # Add audio if provided
-    audio_path = music_file or (Path(manifest.audio_file) if manifest.audio_file else None)
-    if audio_path:
-        if not audio_path.exists():
-            typer.echo(f"⚠️  Audio file not found: {audio_path}")
-        else:
-            typer.echo(f"   Adding audio: {audio_path}")
-            try:
-                video = sync_audio(video, audio_path, loop=True, fade_out=fade_audio_out)
-            except Exception as e:
-                typer.echo(f"⚠️  Error adding audio: {e}")
-
-    # Configure encoding based on quality
-    encoding_params = {
-        "fps": 30,
-        "preset": "medium" if quality == OutputQuality.FINAL else "ultrafast",
-    }
-
-    if quality == OutputQuality.FINAL:
-        encoding_params["bitrate"] = "8000k"
-    else:
-        encoding_params["bitrate"] = "3000k"
-
-    # Adjust codec based on format
-    codec_map = {
-        OutputFormat.MP4: ("libx264", "aac"),
-        OutputFormat.WEBM: ("libvpx", "libvorbis"),
-        OutputFormat.MOV: ("libx264", "aac"),
-    }
-    video_codec, audio_codec = codec_map[output_format]
-    encoding_params["codec"] = video_codec
-    encoding_params["audio_codec"] = audio_codec
-
-    # Ensure output has correct extension
-    output = output.with_suffix(f".{output_format.value}")
-
-    # Export final video
-    typer.echo(f"   Rendering to {output} ({quality.value} quality)...")
+    # Write the script
     try:
-        export(video, output, **encoding_params)
-        typer.echo(f"✅ Video assembled: {output}")
-
-        # Show video info
-        typer.echo(f"   Duration: {video.duration:.1f}s")
-        typer.echo(f"   Resolution: {video.w}x{video.h}")
-
+        output.write_text(script_content)
+        typer.echo(f"\n✅ Script generated: {output}")
+        typer.echo(f"\nNext steps:")
+        typer.echo(f"   1. Review and adjust the script as needed")
+        typer.echo(f"   2. Run: python {output}")
+        typer.echo(f"   3. Ask Claude to refine text positioning/sizing")
     except Exception as e:
-        typer.echo(f"❌ Error exporting video: {e}")
+        typer.echo(f"❌ Error writing script: {e}")
         raise typer.Exit(1)
-    finally:
-        # Clean up
-        video.close()
 
 
 @app.command()

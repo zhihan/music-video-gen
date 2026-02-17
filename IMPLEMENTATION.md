@@ -78,7 +78,7 @@ music-video-gen/
 | `status` | Show project state |
 | `imagen <prompt>` | Generate reference image |
 | `veo` | Generate clips via Veo 3 |
-| `assemble` | Stitch final video |
+| `generate-script` | Generate MoviePy assembly script with text overlays |
 | `transcribe <audio>` | Generate lyrics/subtitles (planned) |
 
 ### 2.2 Models (`models/`)
@@ -294,13 +294,11 @@ video-maker
 │   ├── --reference PATH             # Reference image for consistency
 │   └── --skip-existing              # Don't regenerate existing clips
 │
-├── assemble                         # Stitch final video
+├── generate-script                  # Generate MoviePy assembly script
 │   ├── --script PATH                # Path to script.yaml
 │   ├── --clips PATH                 # Clips directory
-│   ├── --music PATH                 # Audio file
-│   ├── --output PATH                # Output file
-│   ├── --format [mp4|webm|mov]      # Container format
-│   └── --quality [draft|final]      # Encoding quality
+│   ├── --output PATH                # Output Python script path
+│   └── --output-video PATH          # Output video path for generated script
 │
 └── transcribe <audio>               # Generate subtitles (planned)
     ├── --output PATH                # Output SRT/VTT file
