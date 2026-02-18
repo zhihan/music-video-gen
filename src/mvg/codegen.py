@@ -82,24 +82,24 @@ OUTPUT_PATH = Path("{output_video}")
 VIDEO_WIDTH = {width}
 VIDEO_HEIGHT = {height}
 
-TEXT_WIDTH = 680
+TEXT_WIDTH = 960
 FONT = "Arial"
 TEXT_COLOR = "white"
 TEXT_BG = "#000000AA"
 
 PRESETS = {{
     "title": {{
-        "font_size": 70,
+        "font_size": 105,
         "chars_per_line": 17,
         "max_lines": 2,
     }},
     "text": {{
-        "font_size": 50,
+        "font_size": 75,
         "chars_per_line": 24,
         "max_lines": 5,
     }},
     "subtitle": {{
-        "font_size": 40,
+        "font_size": 60,
         "chars_per_line": 30,
         "max_lines": 3,
     }},

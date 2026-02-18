@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from moviepy import CompositeVideoClip, TextClip, VideoClip
 
 # Default text width for a 1080px-wide (9:16) canvas
-TEXT_WIDTH = 680
+TEXT_WIDTH = 960
 
 
 @dataclass
@@ -32,17 +32,17 @@ class TextStyle:
 # Preset styles for 9:16 canvas with TEXT_WIDTH=680
 STYLES: dict[str, TextStyle] = {
     "title": TextStyle(
-        font_size=70,
+        font_size=105,
         chars_per_line=17,
         max_lines=2,
     ),
     "text": TextStyle(
-        font_size=50,
+        font_size=75,
         chars_per_line=24,
         max_lines=5,
     ),
     "subtitle": TextStyle(
-        font_size=40,
+        font_size=60,
         chars_per_line=30,
         max_lines=3,
     ),

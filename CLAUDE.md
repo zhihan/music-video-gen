@@ -208,14 +208,14 @@ Use these three presets (defined in `src/mvg/editor/overlays.py`) for all text o
 Word wrapping is handled automatically via `textwrap.wrap()` — no manual line breaks needed.
 
 ```python
-TEXT_WIDTH = 680
+TEXT_WIDTH = 960
 TEXT_BG = '#000000AA'
 
 # Presets: font_size, chars_per_line (CPL), max_lines
 PRESETS = {
-    "title":    {"font_size": 70, "chars_per_line": 17, "max_lines": 2},
-    "text":     {"font_size": 50, "chars_per_line": 24, "max_lines": 5},
-    "subtitle": {"font_size": 40, "chars_per_line": 30, "max_lines": 3},
+    "title":    {"font_size": 105, "chars_per_line": 17, "max_lines": 2},
+    "text":     {"font_size": 75, "chars_per_line": 24, "max_lines": 5},
+    "subtitle": {"font_size": 60, "chars_per_line": 30, "max_lines": 3},
 }
 
 # Text height formula: int(font_size * 1.4) * line_count + int(font_size * 0.3)

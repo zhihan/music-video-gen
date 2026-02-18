@@ -1,232 +1,209 @@
 #!/usr/bin/env python3
-"""
-Auto-generated MoviePy assembly script for: The Unknown Way
+"""Auto-generated MoviePy assembly script.
 
-This script adds text overlays to video clips based on script.yaml.
-Feel free to adjust text sizing, positioning, and styling as needed.
+Project: Pressed Into Gold
+
+Adds text overlays to video clips based on script.yaml.
+Adjust text sizing, positioning, and styling as needed.
 
 Usage:
     python scripts/assembly.py
-
-To refine with Claude:
-    "The text on scene X is too small, make it larger"
-    "Move the overlay up, it's covering the subject's face"
-    "Add a fade-in effect to the text"
 """
 
+import textwrap
 from pathlib import Path
+
 from moviepy import (
     AudioFileClip,
-    VideoFileClip,
-    TextClip,
+    ColorClip,
     CompositeVideoClip,
+    TextClip,
+    VideoFileClip,
     concatenate_videoclips,
+    vfx,
 )
 
-# =============================================================================
-# CONFIGURATION - Adjust these values as needed
-# =============================================================================
+# ============================================================
+# CONFIGURATION
+# ============================================================
 
 CLIPS_DIR = Path("clips")
+AUDIO_PATH = Path("song.mp3")
 OUTPUT_PATH = Path("output/final.mp4")
-AUDIO_FILE = Path("song.mp3")
 VIDEO_WIDTH = 1080
 VIDEO_HEIGHT = 1920
 
-# Title configuration
-TITLE_TEXT = "Thousands of Conversation"
-TITLE_DURATION = 4.0  # How long the title shows
-TITLE_FONT_SIZE = 96
-LYRICS_DELAY = 3.0  # Delay first lyrics to make room for title
-
-# Text styling constants (adjust these to change all text at once)
-TEXT_WIDTH = 918  # 85% of video width
-FONT_SIZE = 64  # Increased from 48
+TEXT_WIDTH = 960
 FONT = "Arial"
 TEXT_COLOR = "white"
-TEXT_BG = "#000000AA"  # Semi-transparent black background
+TEXT_BG = "#000000AA"
 
-# Height constants based on text length (adjust if text is clipped)
-TEXT_1LINE_H = 100
-TEXT_2LINE_H = 160
-TEXT_3LINE_H = 240
-TEXT_4LINE_H = 320
-
-# =============================================================================
-# SCENE DATA (from script.yaml)
-# =============================================================================
-
-SCENES = {
-    "city_departure": {"duration": 8.0, "overlay_text": 'If You lead me a way that I know, it would not benefit...'},
-    "steel_tracks": {"duration": 8.0, "overlay_text": '...like the ways unknown.'},
-    "clouds": {"duration": 8.0, "overlay_text": "As You lead me a way that I don't understand,"},
-    "open_sea": {"duration": 8.0, "overlay_text": 'I only can open to You.'},
-    "footsteps_montage": {"duration": 8.0, "overlay_text": "This leads to thousands of conversations: 'Who are You,\nLord? What shall I do?'"},
-    "ascent": {"duration": 8.0, "overlay_text": 'Each one forms a piece of our journey together,'},
-    "peak": {"duration": 8.0, "overlay_text": 'An eternal memorial between me and You.'},
-    "reveal": {"duration": 6.0, "overlay_text": None},
+PRESETS = {
+    "title": {
+        "font_size": 105,
+        "chars_per_line": 17,
+        "max_lines": 2,
+    },
+    "text": {
+        "font_size": 75,
+        "chars_per_line": 24,
+        "max_lines": 5,
+    },
+    "subtitle": {
+        "font_size": 60,
+        "chars_per_line": 30,
+        "max_lines": 3,
+    },
 }
 
-# =============================================================================
-# HELPER FUNCTIONS
-# =============================================================================
+# ============================================================
+# SCENE DATA (from script.yaml)
+# ============================================================
 
-def estimate_text_height(text: str, width: int, font_size: int) -> int:
-    """Estimate text height based on character count and width."""
-    if not text:
-        return TEXT_1LINE_H
-    # Rough estimate: ~15 chars per line at standard font size
-    chars_per_line = width // (font_size * 0.6)
-    lines = max(1, len(text) // int(chars_per_line) + 1)
-    if lines == 1:
-        return TEXT_1LINE_H
-    elif lines == 2:
-        return TEXT_2LINE_H
-    elif lines == 3:
-        return TEXT_3LINE_H
-    else:
-        return TEXT_4LINE_H
+SCENES = {
+    "harvest_press": {"duration": 8.0, "overlay_text": 'Olives that have known no pressure. No oil can bestow.', "overlay_style": 'text'},
+    "winepress": {"duration": 8.0, "overlay_text": 'If the grapes escape the winepress / Cheering wine can never flow.', "overlay_style": 'text'},
+    "perfumer": {"duration": 8.0, "overlay_text": 'Spikenard only through the crushing / Fragrance can diffuse.', "overlay_style": 'text'},
+    "lutherie": {"duration": 8.0, "overlay_text": 'Do my heart-strings need Thy stretching / Songs divine to prove?', "overlay_style": 'text'},
+    "silversmith": {"duration": 8.0, "overlay_text": 'Though Thy love has done its stripping / Still pursue Thy way.', "overlay_style": 'text'},
+    "sculptor": {"duration": 8.0, "overlay_text": 'In the place of what Thou takest / Thou dost give Thyself to me.', "overlay_style": 'text'},
+    "desert_rain": {"duration": 8.0, "overlay_text": "If Thy pleasure means my sorrow / Still my heart shall answer, 'Yea!'", "overlay_style": 'text'},
+    "ascension": {"duration": 8.0, "overlay_text": 'Thou increase and I decrease, Lord / This is now my only plea.', "overlay_style": 'text'},
+}
+
+# ============================================================
+# HELPER FUNCTIONS
+# ============================================================
+
+
+def wrap_text(
+    text: str, chars_per_line: int, max_lines: int
+) -> str:
+    """Word-wrap text at word boundaries."""
+    lines = textwrap.wrap(text, width=chars_per_line)
+    if len(lines) > max_lines:
+        lines = lines[:max_lines]
+        last = lines[-1]
+        if len(last) > chars_per_line - 3:
+            last = last[:chars_per_line - 3]
+        lines[-1] = last.rstrip() + "..."
+    return "\n".join(lines)
+
+
+def calc_text_height(
+    line_count: int, font_size: int
+) -> int:
+    """Calculate text box height."""
+    line_height = int(font_size * 1.4)
+    return line_height * line_count + int(
+        font_size * 0.3
+    )
 
 
 def create_text_overlay(
     text: str,
     duration: float,
     video_size: tuple[int, int],
-    start_time: float = 0,
+    preset: str = "text",
 ) -> TextClip:
-    """Create a text overlay clip with semi-transparent background."""
+    """Create a text overlay clip."""
     width, height = video_size
-    text_height = estimate_text_height(text, TEXT_WIDTH, FONT_SIZE)
+    cfg = PRESETS.get(preset, PRESETS["text"])
+    font_size = cfg["font_size"]
+
+    wrapped = wrap_text(
+        text, cfg["chars_per_line"], cfg["max_lines"]
+    )
+    line_count = wrapped.count("\n") + 1
+    text_height = calc_text_height(
+        line_count, font_size
+    )
 
     text_clip = TextClip(
-        text=text,
+        text=wrapped,
         font=FONT,
-        font_size=FONT_SIZE,
+        font_size=font_size,
         color=TEXT_COLOR,
         bg_color=TEXT_BG,
         size=(TEXT_WIDTH, text_height),
-        method="caption",  # Enables word wrapping
+        method="caption",
         text_align="center",
-        vertical_align="center",
+        vertical_align="top",
     )
     text_clip = text_clip.with_duration(duration)
-    if start_time > 0:
-        text_clip = text_clip.with_start(start_time)
 
-    # Position at 3/4 down the screen
-    y_position = int(height * 0.75) - text_height // 2
-    text_clip = text_clip.with_position(("center", y_position))
+    y_position = (
+        int(height * 0.75) - text_height // 2
+    )
+    text_clip = text_clip.with_position(
+        ("center", y_position)
+    )
 
     return text_clip
 
 
-def create_title_overlay(duration: float, video_size: tuple[int, int]) -> TextClip:
-    """Create the title overlay clip."""
-    width, height = video_size
-
-    title_height = 210  # Increased for larger font
-    title_clip = TextClip(
-        text=TITLE_TEXT,
-        font=FONT,
-        font_size=TITLE_FONT_SIZE,
-        color=TEXT_COLOR,
-        bg_color=TEXT_BG,
-        size=(TEXT_WIDTH, title_height),
-        method="caption",
-        text_align="center",
-        vertical_align="center",
-    )
-    title_clip = title_clip.with_duration(duration)
-
-    # Position title at 1/3 down the screen
-    y_position = int(height * 0.33) - title_height // 2
-    title_clip = title_clip.with_position(("center", y_position))
-
-    return title_clip
-
-
 def load_and_process_clip(
-    scene_id: str,
-    scene_data: dict,
-    is_first_clip: bool = False,
+    scene_id: str, scene_data: dict
 ) -> VideoFileClip:
     """Load a clip and add text overlay if specified."""
     clip_path = CLIPS_DIR / f"{scene_id}.mp4"
 
     if not clip_path.exists():
-        raise FileNotFoundError(f"Clip not found: {clip_path}")
+        raise FileNotFoundError(
+            f"Clip not found: {clip_path}"
+        )
 
-    # Load the video clip
     clip = VideoFileClip(str(clip_path))
 
-    # Resize/crop to target dimensions if needed
     if clip.size != (VIDEO_WIDTH, VIDEO_HEIGHT):
         clip = clip.resized(height=VIDEO_HEIGHT)
         if clip.size[0] > VIDEO_WIDTH:
-            # Center crop
             x_center = clip.size[0] // 2
             x1 = x_center - VIDEO_WIDTH // 2
-            clip = clip.cropped(x1=x1, x2=x1 + VIDEO_WIDTH)
+            clip = clip.cropped(
+                x1=x1, x2=x1 + VIDEO_WIDTH
+            )
 
-    layers = [clip]
-
-    # Add title overlay on first clip
-    if is_first_clip:
-        title_clip = create_title_overlay(
-            duration=TITLE_DURATION,
-            video_size=(VIDEO_WIDTH, VIDEO_HEIGHT),
-        )
-        layers.append(title_clip)
-
-    # Add text overlay if present
     overlay_text = scene_data.get("overlay_text")
     if overlay_text:
-        if is_first_clip:
-            # Delay lyrics on first clip to make room for title
-            lyrics_start = LYRICS_DELAY
-            lyrics_duration = clip.duration - LYRICS_DELAY
-        else:
-            lyrics_start = 0
-            lyrics_duration = clip.duration
-
+        preset = scene_data.get("overlay_style", "text")
         text_clip = create_text_overlay(
             text=overlay_text,
-            duration=lyrics_duration,
+            duration=clip.duration,
             video_size=(VIDEO_WIDTH, VIDEO_HEIGHT),
-            start_time=lyrics_start,
+            preset=preset,
         )
-        layers.append(text_clip)
-
-    if len(layers) > 1:
-        clip = CompositeVideoClip(layers)
+        clip = CompositeVideoClip([clip, text_clip])
 
     return clip
 
 
-# =============================================================================
+# ============================================================
 # MAIN ASSEMBLY
-# =============================================================================
+# ============================================================
+
 
 def main():
     """Assemble all clips with text overlays."""
-    print(f"Assembling video: The Unknown Way")
+    print(f"Assembling video: Pressed Into Gold")
     print(f"Output: {OUTPUT_PATH}")
-    print(f"Audio: {AUDIO_FILE}")
     print()
 
     clips = []
-    scene_items = list(SCENES.items())
-    for i, (scene_id, scene_data) in enumerate(scene_items):
+    for scene_id, scene_data in SCENES.items():
         print(f"  Processing {scene_id}...")
         try:
-            is_first = (i == 0)
-            clip = load_and_process_clip(scene_id, scene_data, is_first_clip=is_first)
+            clip = load_and_process_clip(
+                scene_id, scene_data
+            )
             clips.append(clip)
-            if is_first:
-                print(f"    Title: {TITLE_TEXT}")
             overlay = scene_data.get("overlay_text", "")
             if overlay:
-                preview = overlay[:40] + "..." if len(overlay) > 40 else overlay
+                preview = (
+                    overlay[:40] + "..."
+                    if len(overlay) > 40
+                    else overlay
+                )
                 print(f"    Text: {preview}")
         except FileNotFoundError as e:
             print(f"    WARNING: {e}")
@@ -236,27 +213,43 @@ def main():
         print("No clips found to assemble!")
         return
 
+    # 1s white screen that fades out (fade in)
+    fade_in = ColorClip(
+        size=(VIDEO_WIDTH, VIDEO_HEIGHT),
+        color=(255, 255, 255),
+    ).with_duration(1.0)
+    fade_in = fade_in.with_effects(
+        [vfx.CrossFadeOut(1.0)]
+    )
+    clips.insert(0, fade_in)
+
+    # 2s white screen that fades in (fade out)
+    fade_out = ColorClip(
+        size=(VIDEO_WIDTH, VIDEO_HEIGHT),
+        color=(255, 255, 255),
+    ).with_duration(2.0)
+    fade_out = fade_out.with_effects(
+        [vfx.CrossFadeIn(2.0)]
+    )
+    clips.append(fade_out)
+
     print()
     print(f"Concatenating {len(clips)} clips...")
 
-    # Concatenate all clips
-    final = concatenate_videoclips(clips, method="compose")
+    final = concatenate_videoclips(
+        clips, method="compose"
+    )
 
-    # Load and add audio
-    if AUDIO_FILE.exists():
-        print(f"Adding audio: {AUDIO_FILE}")
-        audio = AudioFileClip(str(AUDIO_FILE))
-        # Trim or loop audio to match video duration
-        if audio.duration > final.duration:
-            audio = audio.subclipped(0, final.duration)
+    if AUDIO_PATH.exists():
+        audio = AudioFileClip(str(AUDIO_PATH))
+        audio = audio.subclipped(0, final.duration)
         final = final.with_audio(audio)
+        print(f"Audio: {AUDIO_PATH}")
     else:
-        print(f"WARNING: Audio file not found: {AUDIO_FILE}")
+        print(f"WARNING: Audio not found: {AUDIO_PATH}")
 
-    # Ensure output directory exists
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
 
-    # Export
     print(f"Rendering to {OUTPUT_PATH}...")
     final.write_videofile(
         str(OUTPUT_PATH),
@@ -270,7 +263,6 @@ def main():
     print(f"Done! Output: {OUTPUT_PATH}")
     print(f"Duration: {final.duration:.1f}s")
 
-    # Cleanup
     final.close()
     for clip in clips:
         clip.close()
