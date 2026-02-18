@@ -67,7 +67,6 @@ class VeoClient:
         location: str = DEFAULT_LOCATION,
         model: str | None = None,
         output_bucket: str | None = None,
-        credentials_path: str | None = None,
         poll_interval: float = DEFAULT_POLL_INTERVAL,
         max_poll_time: float = DEFAULT_MAX_POLL_TIME,
         max_retries: int = DEFAULT_MAX_RETRIES,
@@ -80,7 +79,6 @@ class VeoClient:
             location: GCP region for Vertex AI.
             model: Veo model name.
             output_bucket: GCS bucket for output videos.
-            credentials_path: Path to service account JSON.
             poll_interval: Seconds between poll checks.
             max_poll_time: Maximum seconds to wait.
             max_retries: Maximum retry attempts.
@@ -100,10 +98,6 @@ class VeoClient:
         )
         self._output_bucket = (
             output_bucket or config.veo_output_bucket
-        )
-        self._credentials_path = (
-            credentials_path
-            or config.google_application_credentials
         )
         self._poll_interval = poll_interval
         self._max_poll_time = max_poll_time
@@ -176,11 +170,6 @@ class VeoClient:
     def project_id(self) -> str:
         """Return the Google Cloud project ID."""
         return self._project_id
-
-    @property
-    def output_bucket(self) -> str:
-        """Return the output GCS bucket."""
-        return self._output_bucket
 
     def generate_clip(
         self,
@@ -751,177 +740,6 @@ class VeoClient:
                         "Video data received as base64"
                     )
 
-    def _poll_operation(
-        self,
-        operation_name: str,
-        result: GenerationResult,
-    ) -> GenerationResult:
-        """Poll an operation until done (legacy).
-
-        Args:
-            operation_name: The operation resource name.
-            result: The GenerationResult to update.
-
-        Returns:
-            Updated GenerationResult with final status.
-        """
-        start_time = time.time()
-        poll_count = 0
-
-        while True:
-            elapsed = time.time() - start_time
-            if elapsed > self._max_poll_time:
-                logger.warning(
-                    "Operation %s timed out after %.1fs",
-                    operation_name,
-                    elapsed,
-                )
-                result.status = GenerationStatus.FAILED
-                result.error_message = (
-                    "Operation timed out after "
-                    f"{self._max_poll_time}s"
-                )
-                result.completed_at = datetime.now()
-                return result
-
-            poll_count += 1
-            logger.debug(
-                "Polling operation (attempt %d): %s",
-                poll_count,
-                operation_name,
-            )
-
-            try:
-                status = self._check_operation_status(
-                    operation_name
-                )
-
-                if status == "SUCCEEDED":
-                    logger.info(
-                        "Operation %s completed",
-                        operation_name,
-                    )
-                    result.status = (
-                        GenerationStatus.COMPLETED
-                    )
-                    result.completed_at = datetime.now()
-                    return result
-
-                if status in ("FAILED", "CANCELLED"):
-                    logger.error(
-                        "Operation %s %s",
-                        operation_name,
-                        status.lower(),
-                    )
-                    result.status = (
-                        GenerationStatus.CANCELLED
-                        if status == "CANCELLED"
-                        else GenerationStatus.FAILED
-                    )
-                    result.completed_at = datetime.now()
-                    return result
-
-                result.status = (
-                    GenerationStatus.PROCESSING
-                )
-
-            except Exception as e:
-                logger.warning(
-                    "Error checking operation "
-                    "status: %s",
-                    e,
-                )
-
-            time.sleep(self._poll_interval)
-
-    def _check_operation_status(
-        self, operation_name: str
-    ) -> str:
-        """Check the status of an operation.
-
-        Args:
-            operation_name: The operation resource name.
-
-        Returns:
-            Status string: RUNNING, SUCCEEDED, FAILED,
-            or CANCELLED.
-        """
-        try:
-            from google.cloud.aiplatform_v1 import (
-                JobServiceClient,
-            )
-
-            JobServiceClient(
-                client_options={
-                    "api_endpoint": (
-                        f"{self._location}"
-                        "-aiplatform.googleapis.com"
-                    )
-                }
-            )
-            return "SUCCEEDED"
-
-        except Exception as e:
-            logger.debug("Status check error: %s", e)
-            return "RUNNING"
-
-    def poll_operation(
-        self, operation_id: str
-    ) -> GenerationResult:
-        """Poll an existing operation by ID.
-
-        Args:
-            operation_id: The operation ID to poll.
-
-        Returns:
-            GenerationResult with current status.
-        """
-        result = GenerationResult(
-            operation_id=operation_id,
-            status=GenerationStatus.PROCESSING,
-        )
-        return self._poll_operation(operation_id, result)
-
-    def cancel_operation(
-        self, operation_id: str
-    ) -> bool:
-        """Cancel an in-progress operation.
-
-        Args:
-            operation_id: The operation ID to cancel.
-
-        Returns:
-            True if cancellation was successful.
-        """
-        try:
-            logger.info(
-                "Cancelling operation: %s", operation_id
-            )
-
-            from google.cloud.aiplatform_v1 import (
-                JobServiceClient,
-            )
-
-            JobServiceClient(
-                client_options={
-                    "api_endpoint": (
-                        f"{self._location}"
-                        "-aiplatform.googleapis.com"
-                    )
-                }
-            )
-            logger.info(
-                "Cancellation requested for %s",
-                operation_id,
-            )
-            return True
-
-        except Exception as e:
-            logger.error(
-                "Failed to cancel operation: %s", e
-            )
-            return False
-
     def _download_from_gcs(
         self, gcs_uri: str, local_path: Path
     ) -> None:
@@ -986,22 +804,6 @@ class VeoClient:
                 if attempt == self._max_retries - 1:
                     raise
                 time.sleep(delay)
-
-    def list_operations(
-        self, scene_id: str | None = None
-    ) -> list[GenerationResult]:
-        """List recent operations.
-
-        Args:
-            scene_id: Optional scene ID to filter by.
-
-        Returns:
-            List of GenerationResult objects.
-        """
-        logger.debug(
-            "Listing operations (scene_id=%s)", scene_id
-        )
-        return []
 
 
 def save_generation_metadata(

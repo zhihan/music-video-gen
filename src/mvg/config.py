@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 
 from dotenv import load_dotenv
 from pydantic import BaseModel, ConfigDict, Field
@@ -23,18 +22,6 @@ class Config(BaseModel):
             "ANTHROPIC_API_KEY", ""
         ),
         description="Anthropic API key",
-    )
-    openai_api_key: str = Field(
-        default_factory=lambda: os.getenv(
-            "OPENAI_API_KEY", ""
-        ),
-        description="OpenAI API key (for Whisper)",
-    )
-    google_application_credentials: str = Field(
-        default_factory=lambda: os.getenv(
-            "GOOGLE_APPLICATION_CREDENTIALS", ""
-        ),
-        description="Path to Google Cloud service account JSON",
     )
     google_cloud_project: str = Field(
         default_factory=lambda: os.getenv(
@@ -61,28 +48,11 @@ class Config(BaseModel):
         description="KIE.ai API key",
     )
 
-    # Paths
-    workspace: Path = Field(
-        default_factory=lambda: Path(
-            os.getenv("MVG_WORKSPACE", ".")
-        ),
-        description="Workspace directory",
-    )
-
     # Model settings
     default_model: str = Field(
         default="claude-sonnet-4-20250514",
         description="Default Claude model",
     )
-
-    def validate_required(self) -> None:
-        """Validate that required credentials are set.
-
-        Raises:
-            ValueError: If ANTHROPIC_API_KEY is not set.
-        """
-        if not self.anthropic_api_key:
-            raise ValueError("ANTHROPIC_API_KEY not set")
 
     def validate_kie_required(self) -> None:
         """Validate KIE.ai API key is set.

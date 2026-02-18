@@ -29,10 +29,6 @@ class Manifest(BaseModel):
         default="9:16",
         description="Output aspect ratio",
     )
-    output_format: str = Field(
-        default="mp4",
-        description="Output video format",
-    )
 
     @classmethod
     def from_yaml(cls, path: Path) -> Manifest:
